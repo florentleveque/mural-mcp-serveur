@@ -273,6 +273,247 @@ async function main() {
             additionalProperties: false
           },
         },
+        // Shape widget
+        {
+          name: 'create-shapes',
+          description: 'Create shape widgets (rectangle, circle, triangle, diamond) on a mural. Each shape supports fill, border, and optional text.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string', description: 'The unique identifier of the mural' },
+              shapes: {
+                type: 'array',
+                description: 'Array of shape widgets to create',
+                items: {
+                  type: 'object',
+                  properties: {
+                    x: { type: 'number' },
+                    y: { type: 'number' },
+                    width: { type: 'number' },
+                    height: { type: 'number' },
+                    shape: { type: 'string', enum: ['rectangle', 'circle', 'triangle', 'diamond'], description: 'Shape geometry' },
+                    text: { type: 'string', description: 'Optional text content rendered inside the shape' },
+                    rotation: { type: 'number' },
+                    style: {
+                      type: 'object',
+                      properties: {
+                        backgroundColor: { type: 'string' },
+                        borderColor: { type: 'string' },
+                        borderWidth: { type: 'number' },
+                        borderStyle: { type: 'string', enum: ['solid', 'dashed', 'dotted'] },
+                        fontColor: { type: 'string' },
+                        fontSize: { type: 'number' },
+                        fontFamily: { type: 'string' },
+                        bold: { type: 'boolean' },
+                        italic: { type: 'boolean' },
+                        textAlign: { type: 'string', enum: ['left', 'center', 'right'] }
+                      },
+                      additionalProperties: true
+                    }
+                  },
+                  required: ['x', 'y', 'width', 'height', 'shape'],
+                  additionalProperties: true
+                },
+                minItems: 1
+              }
+            },
+            required: ['muralId', 'shapes'],
+            additionalProperties: false
+          }
+        },
+        // Arrow / connector widget
+        {
+          name: 'create-arrows',
+          description: 'Create arrow (connector) widgets on a mural. Arrows can anchor to other widgets via startRefId/endRefId or use absolute start/end points in the points array.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string', description: 'The unique identifier of the mural' },
+              arrows: {
+                type: 'array',
+                description: 'Array of arrow widgets to create',
+                items: {
+                  type: 'object',
+                  properties: {
+                    x: { type: 'number' },
+                    y: { type: 'number' },
+                    width: { type: 'number' },
+                    height: { type: 'number' },
+                    points: {
+                      type: 'array',
+                      description: 'Two or more {x,y} points defining the arrow path. Coordinates are relative to x/y or absolute depending on Mural API version.',
+                      items: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } }, required: ['x', 'y'], additionalProperties: false },
+                      minItems: 2
+                    },
+                    arrowType: { type: 'string', enum: ['straight', 'curved', 'orthogonal'] },
+                    tip: { type: 'string', enum: ['no tip', 'single', 'double'] },
+                    startRefId: { type: 'string', description: 'Widget ID that the arrow starts at (anchors to widget)' },
+                    endRefId: { type: 'string', description: 'Widget ID that the arrow ends at (anchors to widget)' },
+                    label: { type: 'object', description: 'Optional label attached to the arrow' },
+                    style: {
+                      type: 'object',
+                      properties: {
+                        color: { type: 'string' },
+                        width: { type: 'number' },
+                        arrowheadType: { type: 'string' },
+                        strokeStyle: { type: 'string', enum: ['solid', 'dashed', 'dotted'] }
+                      },
+                      additionalProperties: true
+                    }
+                  },
+                  required: ['x', 'y', 'width', 'height', 'points'],
+                  additionalProperties: true
+                },
+                minItems: 1
+              }
+            },
+            required: ['muralId', 'arrows'],
+            additionalProperties: false
+          }
+        },
+        // Text box widget
+        {
+          name: 'create-text-boxes',
+          description: 'Create text box widgets on a mural. Unlike sticky notes, text boxes support full font color, font size, and alignment.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string' },
+              textBoxes: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    x: { type: 'number' },
+                    y: { type: 'number' },
+                    width: { type: 'number' },
+                    height: { type: 'number' },
+                    text: { type: 'string' },
+                    rotation: { type: 'number' },
+                    style: {
+                      type: 'object',
+                      properties: {
+                        backgroundColor: { type: 'string' },
+                        fontColor: { type: 'string' },
+                        fontSize: { type: 'number' },
+                        fontFamily: { type: 'string' },
+                        bold: { type: 'boolean' },
+                        italic: { type: 'boolean' },
+                        textAlign: { type: 'string', enum: ['left', 'center', 'right'] },
+                        border: { type: 'boolean' },
+                        borderColor: { type: 'string' },
+                        borderWidth: { type: 'number' }
+                      },
+                      additionalProperties: true
+                    }
+                  },
+                  required: ['x', 'y', 'width', 'height', 'text'],
+                  additionalProperties: true
+                },
+                minItems: 1
+              }
+            },
+            required: ['muralId', 'textBoxes'],
+            additionalProperties: false
+          }
+        },
+        // Title widget
+        {
+          name: 'create-titles',
+          description: 'Create title widgets (large heading text) on a mural.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string' },
+              titles: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    x: { type: 'number' },
+                    y: { type: 'number' },
+                    width: { type: 'number' },
+                    height: { type: 'number' },
+                    text: { type: 'string' },
+                    style: {
+                      type: 'object',
+                      properties: {
+                        fontColor: { type: 'string' },
+                        fontSize: { type: 'number' },
+                        fontFamily: { type: 'string' },
+                        bold: { type: 'boolean' },
+                        italic: { type: 'boolean' },
+                        textAlign: { type: 'string', enum: ['left', 'center', 'right'] }
+                      },
+                      additionalProperties: true
+                    }
+                  },
+                  required: ['x', 'y', 'text'],
+                  additionalProperties: true
+                },
+                minItems: 1
+              }
+            },
+            required: ['muralId', 'titles'],
+            additionalProperties: false
+          }
+        },
+        // Area widget (grouping container)
+        {
+          name: 'create-areas',
+          description: 'Create area widgets (grouping containers) on a mural.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string' },
+              areas: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    x: { type: 'number' },
+                    y: { type: 'number' },
+                    width: { type: 'number' },
+                    height: { type: 'number' },
+                    title: { type: 'string' },
+                    style: {
+                      type: 'object',
+                      properties: {
+                        backgroundColor: { type: 'string' },
+                        borderColor: { type: 'string' },
+                        borderWidth: { type: 'number' },
+                        fontColor: { type: 'string' },
+                        fontSize: { type: 'number' }
+                      },
+                      additionalProperties: true
+                    }
+                  },
+                  required: ['x', 'y', 'width', 'height'],
+                  additionalProperties: true
+                },
+                minItems: 1
+              }
+            },
+            required: ['muralId', 'areas'],
+            additionalProperties: false
+          }
+        },
+        // Generic update tool — works for any widget kind
+        {
+          name: 'update-widget',
+          description: 'Update any widget by kind and ID (sticky-note, shape, arrow, text-box, title, area). Accepts arbitrary field updates.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string' },
+              kind: { type: 'string', enum: ['sticky-note', 'shape', 'arrow', 'text-box', 'title', 'area'] },
+              widgetId: { type: 'string' },
+              updates: { type: 'object', additionalProperties: true }
+            },
+            required: ['muralId', 'kind', 'widgetId', 'updates'],
+            additionalProperties: false
+          }
+        },
         // PATCH/Update tools
         {
           name: 'update-sticky-note',
@@ -712,6 +953,157 @@ async function main() {
                 }, null, 2)
               }
             ],
+          };
+        }
+
+        case 'delete-widget': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            widgetId: z.string().min(1)
+          });
+          const { muralId, widgetId } = schema.parse(args);
+          await muralClient.deleteWidget(muralId, widgetId);
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                muralId,
+                widgetId,
+                deleted: true,
+                message: `Successfully deleted widget ${widgetId} from mural ${muralId}`
+              }, null, 2)
+            }]
+          };
+        }
+
+        case 'create-shapes': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            shapes: z.array(z.record(z.string(), z.unknown())).min(1)
+          });
+          const { muralId, shapes } = schema.parse(args);
+          const createdWidgets = await muralClient.createShapes(muralId, shapes as Record<string, unknown>[]);
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                widgets: createdWidgets,
+                count: Array.isArray(createdWidgets) ? createdWidgets.length : 0,
+                muralId,
+                message: `Created ${Array.isArray(createdWidgets) ? createdWidgets.length : 0} shape widget(s)`
+              }, null, 2)
+            }]
+          };
+        }
+
+        case 'create-arrows': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            arrows: z.array(z.record(z.string(), z.unknown())).min(1)
+          });
+          const { muralId, arrows } = schema.parse(args);
+          const createdWidgets = await muralClient.createArrows(muralId, arrows as Record<string, unknown>[]);
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                widgets: createdWidgets,
+                count: Array.isArray(createdWidgets) ? createdWidgets.length : 0,
+                muralId,
+                message: `Created ${Array.isArray(createdWidgets) ? createdWidgets.length : 0} arrow widget(s)`
+              }, null, 2)
+            }]
+          };
+        }
+
+        case 'create-text-boxes': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            textBoxes: z.array(z.record(z.string(), z.unknown())).min(1)
+          });
+          const { muralId, textBoxes } = schema.parse(args);
+          const createdWidgets = await muralClient.createTextBoxes(muralId, textBoxes as Record<string, unknown>[]);
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                widgets: createdWidgets,
+                count: Array.isArray(createdWidgets) ? createdWidgets.length : 0,
+                muralId,
+                message: `Created ${Array.isArray(createdWidgets) ? createdWidgets.length : 0} text-box widget(s)`
+              }, null, 2)
+            }]
+          };
+        }
+
+        case 'create-titles': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            titles: z.array(z.record(z.string(), z.unknown())).min(1)
+          });
+          const { muralId, titles } = schema.parse(args);
+          const createdWidgets = await muralClient.createTitles(muralId, titles as Record<string, unknown>[]);
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                widgets: createdWidgets,
+                count: Array.isArray(createdWidgets) ? createdWidgets.length : 0,
+                muralId,
+                message: `Created ${Array.isArray(createdWidgets) ? createdWidgets.length : 0} title widget(s)`
+              }, null, 2)
+            }]
+          };
+        }
+
+        case 'create-areas': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            areas: z.array(z.record(z.string(), z.unknown())).min(1)
+          });
+          const { muralId, areas } = schema.parse(args);
+          const createdWidgets = await muralClient.createAreas(muralId, areas as Record<string, unknown>[]);
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                widgets: createdWidgets,
+                count: Array.isArray(createdWidgets) ? createdWidgets.length : 0,
+                muralId,
+                message: `Created ${Array.isArray(createdWidgets) ? createdWidgets.length : 0} area widget(s)`
+              }, null, 2)
+            }]
+          };
+        }
+
+        case 'update-widget': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            kind: z.enum(['sticky-note', 'shape', 'arrow', 'text-box', 'title', 'area']),
+            widgetId: z.string().min(1),
+            updates: z.record(z.string(), z.unknown())
+          });
+          const { muralId, kind, widgetId, updates } = schema.parse(args);
+          let updated: any;
+          switch (kind) {
+            case 'sticky-note': updated = await muralClient.updateStickyNote(muralId, widgetId, updates as any); break;
+            case 'shape':       updated = await muralClient.updateShape(muralId, widgetId, updates); break;
+            case 'arrow':       updated = await muralClient.updateArrow(muralId, widgetId, updates); break;
+            case 'text-box':    updated = await muralClient.updateTextBox(muralId, widgetId, updates); break;
+            case 'title':       updated = await muralClient.updateTitle(muralId, widgetId, updates); break;
+            case 'area':        updated = await muralClient.updateArea(muralId, widgetId, updates); break;
+          }
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                widget: updated,
+                muralId,
+                widgetId,
+                kind,
+                message: `Updated ${kind} ${widgetId}`
+              }, null, 2)
+            }]
           };
         }
 

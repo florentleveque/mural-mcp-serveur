@@ -44,4 +44,4 @@ coverage/
 *.tsbuildinfo
 
 # Claude IDE settings
-.claude/
+.claude/package-lock.json

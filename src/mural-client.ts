@@ -504,4 +504,89 @@ export class MuralClient {
     }
   }
 
+  // ============================================================================
+  // GENERIC WIDGET CREATION / UPDATE (used by shape, arrow, text-box, title, area)
+  // ============================================================================
+
+  private async createWidgetsOfKind(
+    muralId: string,
+    kind: 'shape' | 'arrow' | 'text-box' | 'title' | 'area',
+    widgets: Record<string, unknown>[]
+  ): Promise<MuralWidget[]> {
+    const scopeCheck = await this.checkScope('murals:write');
+    if (!scopeCheck.hasScope) {
+      throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'murals:write' scope and re-authenticate.`);
+    }
+
+    const response = await this.makeAuthenticatedRequest<any>(
+      `/murals/${encodeURIComponent(muralId)}/widgets/${kind}`,
+      {
+        method: 'POST',
+        body: JSON.stringify(widgets),
+      }
+    );
+    return response.value || response || [];
+  }
+
+  private async updateWidgetOfKind(
+    muralId: string,
+    kind: 'shape' | 'arrow' | 'text-box' | 'title' | 'area' | 'sticky-note',
+    widgetId: string,
+    updates: Record<string, unknown>
+  ): Promise<MuralWidget> {
+    const scopeCheck = await this.checkScope('murals:write');
+    if (!scopeCheck.hasScope) {
+      throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'murals:write' scope and re-authenticate.`);
+    }
+
+    const response = await this.makeAuthenticatedRequest<any>(
+      `/murals/${encodeURIComponent(muralId)}/widgets/${kind}/${encodeURIComponent(widgetId)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(updates),
+      }
+    );
+    return response.value || response;
+  }
+
+  async createShapes(muralId: string, shapes: Record<string, unknown>[]): Promise<MuralWidget[]> {
+    return this.createWidgetsOfKind(muralId, 'shape', shapes);
+  }
+
+  async createArrows(muralId: string, arrows: Record<string, unknown>[]): Promise<MuralWidget[]> {
+    return this.createWidgetsOfKind(muralId, 'arrow', arrows);
+  }
+
+  async createTextBoxes(muralId: string, textBoxes: Record<string, unknown>[]): Promise<MuralWidget[]> {
+    return this.createWidgetsOfKind(muralId, 'text-box', textBoxes);
+  }
+
+  async createTitles(muralId: string, titles: Record<string, unknown>[]): Promise<MuralWidget[]> {
+    return this.createWidgetsOfKind(muralId, 'title', titles);
+  }
+
+  async createAreas(muralId: string, areas: Record<string, unknown>[]): Promise<MuralWidget[]> {
+    return this.createWidgetsOfKind(muralId, 'area', areas);
+  }
+
+  async updateShape(muralId: string, widgetId: string, updates: Record<string, unknown>): Promise<MuralWidget> {
+    return this.updateWidgetOfKind(muralId, 'shape', widgetId, updates);
+  }
+
+  async updateArrow(muralId: string, widgetId: string, updates: Record<string, unknown>): Promise<MuralWidget> {
+    return this.updateWidgetOfKind(muralId, 'arrow', widgetId, updates);
+  }
+
+  async updateTextBox(muralId: string, widgetId: string, updates: Record<string, unknown>): Promise<MuralWidget> {
+    return this.updateWidgetOfKind(muralId, 'text-box', widgetId, updates);
+  }
+
+  async updateTitle(muralId: string, widgetId: string, updates: Record<string, unknown>): Promise<MuralWidget> {
+    return this.updateWidgetOfKind(muralId, 'title', widgetId, updates);
+  }
+
+  async updateArea(muralId: string, widgetId: string, updates: Record<string, unknown>): Promise<MuralWidget> {
+    return this.updateWidgetOfKind(muralId, 'area', widgetId, updates);
+  }
+
 }
