@@ -1,6 +1,5 @@
-# Mural MCP Server
+# Mural MCP Serveur
 
-[![npm version](https://badge.fury.io/js/mural-mcp.svg)](https://badge.fury.io/js/mural-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A Model Context Protocol (MCP) server that provides integration with the Mural visual collaboration platform. This server enables AI assistants to interact with Mural workspaces through OAuth 2.0 authentication.

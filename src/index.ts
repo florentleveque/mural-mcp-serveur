@@ -35,7 +35,7 @@ async function main() {
 
   const server = new Server(
     {
-      name: 'mural-mcp-server',
+      name: 'mural-mcp-serveur',
       version: '1.0.0',
     },
     {

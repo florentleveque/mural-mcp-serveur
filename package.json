@@ -1,11 +1,11 @@
 {
-  "name": "mural-mcp",
+  "name": "mural-mcp-serveur",
   "version": "0.5.2",
   "description": "Model Context Protocol server for Mural visual collaboration platform",
   "type": "module",
   "main": "build/index.js",
   "bin": {
-    "mural-mcp": "./build/index.js"
+    "mural-mcp-serveur": "./build/index.js"
   },
   "scripts": {
     "build": "tsc && chmod +x build/index.js",
@@ -25,15 +25,15 @@
     "llm",
     "oauth"
   ],
-  "author": "",
+  "author": "Florent Lévêque <florent.leveque@digital4better.com>",
   "license": "MIT",
-  "homepage": "https://github.com/your-username/mural-mcp#readme",
+  "homepage": "https://github.com/florentleveque/mural-mcp-serveur#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/your-username/mural-mcp.git"
+    "url": "git+https://github.com/florentleveque/mural-mcp-serveur.git"
   },
   "bugs": {
-    "url": "https://github.com/your-username/mural-mcp/issues"
+    "url": "https://github.com/florentleveque/mural-mcp-serveur/issues"
   },
   "engines": {
     "node": ">=18.0.0"
