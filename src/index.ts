@@ -172,7 +172,7 @@ async function main() {
         },
         {
           name: 'list-workspace-templates',
-          description: 'List a workspace templates (default + custom), or search them by name. Returns all pages.',
+          description: 'List a workspace\'s templates (default + custom), or search them by name. Returns all pages.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -262,7 +262,7 @@ async function main() {
         },
         {
           name: 'get-mural-widget',
-          description: 'Get details of a specific widget by ID',
+          description: 'Get details of a specific widget by its ID (requires both the mural id and the widget id)',
           inputSchema: {
             type: 'object',
             properties: {
@@ -281,7 +281,7 @@ async function main() {
         },
         {
           name: 'delete-widget',
-          description: 'Delete a widget by ID',
+          description: 'Permanently delete a widget from a mural by its ID (irreversible)',
           inputSchema: {
             type: 'object',
             properties: {
