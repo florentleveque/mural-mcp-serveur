@@ -12,6 +12,9 @@ dist/
 # Authentication tokens
 .mural-mcp-tokens.json
 
+# Local MCP server registration (machine-specific absolute path)
+.mcp.json
+
 # IDE
 .vscode/
 .idea/
