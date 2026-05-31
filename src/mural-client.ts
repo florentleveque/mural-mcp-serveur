@@ -1,6 +1,8 @@
 import type {
   MuralWorkspace,
   MuralBoard,
+  MuralRoom,
+  MuralTemplate,
   MuralUser,
   ScopeCheckResult,
   RateLimitConfig,
@@ -209,6 +211,109 @@ export class MuralClient {
 
   async resetRateLimits(): Promise<void> {
     await this.rateLimiter.reset();
+  }
+
+  /**
+   * Fetch every page of a cursor-paginated endpoint and return a flat array.
+   * The Mural API paginates list endpoints with `limit` + a `next` cursor.
+   * Checks the OAuth scope once, then follows `next` until exhausted or the
+   * safety cap (`maxPages`) is reached. Existing query params are preserved.
+   */
+  private async fetchAllPages<T>(basePath: string, scope: string, maxPages: number = 100): Promise<T[]> {
+    const scopeCheck = await this.checkScope(scope);
+    if (!scopeCheck.hasScope) {
+      throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has '${scope}' scope and re-authenticate.`);
+    }
+
+    const items: T[] = [];
+    const [path, existingQuery = ''] = basePath.split('?');
+    let next: string | undefined;
+    let page = 0;
+
+    do {
+      const params = new URLSearchParams(existingQuery);
+      if (next) params.set('next', next);
+      const queryString = params.toString();
+      const endpoint = `${path}${queryString ? `?${queryString}` : ''}`;
+
+      const response = await this.makeAuthenticatedRequest<any>(endpoint);
+      const pageItems = response.value ?? response;
+      if (Array.isArray(pageItems)) {
+        items.push(...pageItems);
+      }
+      next = response.next;
+      page++;
+    } while (next && page < maxPages);
+
+    if (next && page >= maxPages) {
+      console.error(`fetchAllPages: reached the ${maxPages}-page cap for ${path}; results may be truncated.`);
+    }
+
+    return items;
+  }
+
+  async getWorkspaceRooms(workspaceId: string, openOnly: boolean = false): Promise<MuralRoom[]> {
+    try {
+      const endpoint = openOnly
+        ? `/workspaces/${workspaceId}/rooms/open`
+        : `/workspaces/${workspaceId}/rooms`;
+      return await this.fetchAllPages<MuralRoom>(endpoint, 'rooms:read');
+    } catch (error) {
+      if (error instanceof Error && (error.message.includes('403') || error.message.includes('scope'))) {
+        const scopeCheck = await this.checkScope('rooms:read');
+        throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'rooms:read' scope and re-authenticate.`);
+      }
+      console.error(`Failed to fetch rooms for workspace ${workspaceId}:`, error);
+      throw error;
+    }
+  }
+
+  async getWorkspaceTemplates(workspaceId: string, searchQuery?: string, withoutDefault: boolean = false): Promise<MuralTemplate[]> {
+    try {
+      let endpoint: string;
+      if (searchQuery && searchQuery.trim()) {
+        endpoint = `/search/${workspaceId}/templates?q=${encodeURIComponent(searchQuery.trim())}`;
+      } else {
+        endpoint = `/workspaces/${workspaceId}/templates`;
+        if (withoutDefault) {
+          endpoint += '?withoutDefault=true';
+        }
+      }
+      return await this.fetchAllPages<MuralTemplate>(endpoint, 'templates:read');
+    } catch (error) {
+      if (error instanceof Error && (error.message.includes('403') || error.message.includes('scope'))) {
+        const scopeCheck = await this.checkScope('templates:read');
+        throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'templates:read' scope and re-authenticate.`);
+      }
+      console.error(`Failed to fetch templates for workspace ${workspaceId}:`, error);
+      throw error;
+    }
+  }
+
+  async createMuralFromTemplate(templateId: string, title: string, roomId: number, folderId?: string): Promise<MuralBoard> {
+    try {
+      const scopeCheck = await this.checkScope('murals:write');
+      if (!scopeCheck.hasScope) {
+        throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'murals:write' scope and re-authenticate.`);
+      }
+
+      const body: Record<string, unknown> = { title, roomId };
+      if (folderId) {
+        body.folderId = folderId;
+      }
+
+      const response = await this.makeAuthenticatedRequest<any>(
+        `/templates/${encodeURIComponent(templateId)}/murals`,
+        {
+          method: 'POST',
+          body: JSON.stringify(body)
+        }
+      );
+      return response.value || response;
+    } catch (error) {
+      console.error(`Failed to create mural from template ${templateId}:`, error);
+      throw error;
+    }
   }
 
   async getWorkspaceMurals(workspaceId: string): Promise<MuralBoard[]> {

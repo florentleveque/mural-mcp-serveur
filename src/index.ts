@@ -152,6 +152,75 @@ async function main() {
           },
         },
         {
+          name: 'list-workspace-rooms',
+          description: 'List all rooms within a specific workspace (use a room id with list-room-boards). Returns all pages.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              workspaceId: {
+                type: 'string',
+                description: 'The unique identifier of the workspace'
+              },
+              openOnly: {
+                type: 'boolean',
+                description: 'If true, list only open (discoverable) rooms instead of all rooms (optional, defaults to false)'
+              }
+            },
+            required: ['workspaceId'],
+            additionalProperties: false
+          },
+        },
+        {
+          name: 'list-workspace-templates',
+          description: 'List a workspace templates (default + custom), or search them by name. Returns all pages.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              workspaceId: {
+                type: 'string',
+                description: 'The unique identifier of the workspace'
+              },
+              searchQuery: {
+                type: 'string',
+                description: 'Optional. If provided, search templates by name instead of listing all'
+              },
+              withoutDefault: {
+                type: 'boolean',
+                description: 'If true, exclude Mural default templates and return only custom ones (optional, ignored when searchQuery is set)'
+              }
+            },
+            required: ['workspaceId'],
+            additionalProperties: false
+          },
+        },
+        {
+          name: 'create-mural-from-template',
+          description: 'Create a new mural in a room from a template',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              templateId: {
+                type: 'string',
+                description: 'The unique identifier of the template to instantiate'
+              },
+              title: {
+                type: 'string',
+                description: 'Title of the new mural'
+              },
+              roomId: {
+                type: 'number',
+                description: 'The numeric identifier of the destination room'
+              },
+              folderId: {
+                type: 'string',
+                description: 'Optional destination folder id within the room'
+              }
+            },
+            required: ['templateId', 'title', 'roomId'],
+            additionalProperties: false
+          },
+        },
+        {
           name: 'get-board',
           description: 'Get detailed information about a specific board (mural)',
           inputSchema: {
@@ -722,6 +791,85 @@ async function main() {
                   message: boards.length === 0
                     ? `No boards found in room ${roomId}`
                     : `Found ${boards.length} board${boards.length === 1 ? '' : 's'} in room`
+                }, null, 2)
+              }
+            ],
+          };
+        }
+
+        case 'list-workspace-rooms': {
+          const schema = z.object({
+            workspaceId: z.string().min(1),
+            openOnly: z.boolean().optional().default(false)
+          });
+
+          const { workspaceId, openOnly } = schema.parse(args);
+          const rooms = await muralClient.getWorkspaceRooms(workspaceId, openOnly);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  rooms,
+                  count: rooms.length,
+                  workspaceId,
+                  openOnly,
+                  message: rooms.length === 0
+                    ? `No rooms found in workspace ${workspaceId}`
+                    : `Found ${rooms.length} room${rooms.length === 1 ? '' : 's'} in workspace`
+                }, null, 2)
+              }
+            ],
+          };
+        }
+
+        case 'list-workspace-templates': {
+          const schema = z.object({
+            workspaceId: z.string().min(1),
+            searchQuery: z.string().optional(),
+            withoutDefault: z.boolean().optional().default(false)
+          });
+
+          const { workspaceId, searchQuery, withoutDefault } = schema.parse(args);
+          const templates = await muralClient.getWorkspaceTemplates(workspaceId, searchQuery, withoutDefault);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  templates,
+                  count: templates.length,
+                  workspaceId,
+                  searchQuery: searchQuery ?? null,
+                  message: templates.length === 0
+                    ? `No templates found in workspace ${workspaceId}${searchQuery ? ` matching "${searchQuery}"` : ''}`
+                    : `Found ${templates.length} template${templates.length === 1 ? '' : 's'}`
+                }, null, 2)
+              }
+            ],
+          };
+        }
+
+        case 'create-mural-from-template': {
+          const schema = z.object({
+            templateId: z.string().min(1),
+            title: z.string().min(1),
+            roomId: z.number(),
+            folderId: z.string().optional()
+          });
+
+          const { templateId, title, roomId, folderId } = schema.parse(args);
+          const mural = await muralClient.createMuralFromTemplate(templateId, title, roomId, folderId);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  mural,
+                  message: `Created mural "${title}" from template ${templateId} in room ${roomId}`
                 }, null, 2)
               }
             ],

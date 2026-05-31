@@ -108,6 +108,30 @@ export interface MuralBoard {
   url?: string;
 }
 
+// Loose shapes: only the fields we rely on are typed; the API returns more.
+// Refine after observing real responses (see issue #3 plan).
+export interface MuralRoom {
+  id: number | string;
+  name?: string;
+  type?: string;
+  confidential?: boolean;
+  isMember?: boolean;
+  workspaceId?: string;
+  createdOn?: number | string;
+  updatedOn?: number | string;
+}
+
+export interface MuralTemplate {
+  id: string;
+  name?: string;
+  description?: string;
+  workspaceId?: string;
+  type?: string;
+  thumbUrl?: string;
+  viewLink?: string;
+  createdOn?: number | string;
+}
+
 export interface MuralUser {
   id: string;
   firstName?: string;
