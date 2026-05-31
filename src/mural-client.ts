@@ -316,6 +316,35 @@ export class MuralClient {
     }
   }
 
+  async createRoom(workspaceId: string, name: string, type: 'open' | 'private', description?: string, confidential?: boolean): Promise<MuralRoom> {
+    try {
+      const scopeCheck = await this.checkScope('rooms:write');
+      if (!scopeCheck.hasScope) {
+        throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'rooms:write' scope and re-authenticate.`);
+      }
+
+      const body: Record<string, unknown> = { name, type, workspaceId };
+      if (description !== undefined) {
+        body.description = description;
+      }
+      if (confidential !== undefined) {
+        body.confidential = confidential;
+      }
+
+      const response = await this.makeAuthenticatedRequest<any>(
+        '/rooms',
+        {
+          method: 'POST',
+          body: JSON.stringify(body)
+        }
+      );
+      return response.value || response;
+    } catch (error) {
+      console.error(`Failed to create room "${name}" in workspace ${workspaceId}:`, error);
+      throw error;
+    }
+  }
+
   async getWorkspaceMurals(workspaceId: string): Promise<MuralBoard[]> {
     try {
       // Check if user has required scope first

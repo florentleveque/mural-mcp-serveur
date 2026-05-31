@@ -221,6 +221,38 @@ async function main() {
           },
         },
         {
+          name: 'create-room',
+          description: 'Create a new room in a workspace',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              workspaceId: {
+                type: 'string',
+                description: 'The unique identifier of the workspace'
+              },
+              name: {
+                type: 'string',
+                description: 'Name of the new room'
+              },
+              type: {
+                type: 'string',
+                enum: ['open', 'private'],
+                description: 'Room visibility: "open" (discoverable by workspace members) or "private"'
+              },
+              description: {
+                type: 'string',
+                description: 'Optional description of the room'
+              },
+              confidential: {
+                type: 'boolean',
+                description: 'Optional. Mark the room as confidential (defaults to false)'
+              }
+            },
+            required: ['workspaceId', 'name', 'type'],
+            additionalProperties: false
+          },
+        },
+        {
           name: 'get-board',
           description: 'Get detailed information about a specific board (mural)',
           inputSchema: {
@@ -870,6 +902,31 @@ async function main() {
                 text: JSON.stringify({
                   mural,
                   message: `Created mural "${title}" from template ${templateId} in room ${roomId}`
+                }, null, 2)
+              }
+            ],
+          };
+        }
+
+        case 'create-room': {
+          const schema = z.object({
+            workspaceId: z.string().min(1),
+            name: z.string().min(1),
+            type: z.enum(['open', 'private']),
+            description: z.string().optional(),
+            confidential: z.boolean().optional()
+          });
+
+          const { workspaceId, name, type, description, confidential } = schema.parse(args);
+          const room = await muralClient.createRoom(workspaceId, name, type, description, confidential);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  room,
+                  message: `Created ${type} room "${name}" in workspace ${workspaceId}`
                 }, null, 2)
               }
             ],
