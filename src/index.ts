@@ -253,6 +253,87 @@ async function main() {
           },
         },
         {
+          name: 'create-mural',
+          description: 'Create a new blank mural in a room (requires murals:write)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              roomId: { type: 'number', description: 'The numeric identifier of the destination room' },
+              title: { type: 'string', description: 'Optional title of the new mural' },
+              backgroundColor: { type: 'string', description: 'Optional background color (hex, e.g. #FFFFFFFF)' },
+              width: { type: 'number', description: 'Optional canvas width in pixels' },
+              height: { type: 'number', description: 'Optional canvas height in pixels' },
+              infinite: { type: 'boolean', description: 'Optional. Whether the canvas is infinite' },
+              folderId: { type: 'string', description: 'Optional destination folder id within the room' }
+            },
+            required: ['roomId'],
+            additionalProperties: false
+          },
+        },
+        {
+          name: 'update-mural',
+          description: 'Update a mural\'s properties by id (title, status, dimensions, sharing permissions...). Provide at least one field (requires murals:write)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string', description: 'The unique identifier of the mural to update' },
+              title: { type: 'string' },
+              backgroundColor: { type: 'string', description: 'Hex background color' },
+              favorite: { type: 'boolean' },
+              status: { type: 'string', enum: ['active', 'archived'], description: 'Set to "archived" to archive the mural (non-destructive alternative to delete)' },
+              width: { type: 'number', description: 'Canvas width (3000-60000)' },
+              height: { type: 'number', description: 'Canvas height (3000-60000)' },
+              infinite: { type: 'boolean' },
+              visitorsPermission: { type: 'string', enum: ['read', 'write', 'none'] },
+              workspaceMembersPermission: { type: 'string', enum: ['read', 'write', 'none'] },
+              folderId: { type: 'string' }
+            },
+            required: ['muralId'],
+            additionalProperties: false
+          },
+        },
+        {
+          name: 'delete-mural',
+          description: 'Permanently delete a mural by its id (irreversible; requires murals:write). For a non-destructive alternative, use update-mural with status "archived"',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string', description: 'The unique identifier of the mural to delete' }
+            },
+            required: ['muralId'],
+            additionalProperties: false
+          },
+        },
+        {
+          name: 'duplicate-mural',
+          description: 'Duplicate an existing mural into a room (requires murals:write)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string', description: 'The unique identifier of the mural to duplicate' },
+              roomId: { type: 'number', description: 'The numeric identifier of the destination room' },
+              title: { type: 'string', description: 'Title of the duplicated mural' },
+              folderId: { type: 'string', description: 'Optional destination folder id' },
+              infinite: { type: 'boolean', description: 'Optional. Whether the canvas is infinite' }
+            },
+            required: ['muralId', 'roomId', 'title'],
+            additionalProperties: false
+          },
+        },
+        {
+          name: 'export-mural',
+          description: 'Export a mural in a given format (requires murals:read). Accepted downloadFormat values are defined by the Mural API',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string', description: 'The unique identifier of the mural to export' },
+              downloadFormat: { type: 'string', description: 'The export format (e.g. pdf, png, zip — values defined by the Mural API)' }
+            },
+            required: ['muralId', 'downloadFormat'],
+            additionalProperties: false
+          },
+        },
+        {
           name: 'get-board',
           description: 'Get detailed information about a specific board (mural)',
           inputSchema: {
@@ -928,6 +1009,110 @@ async function main() {
                   room,
                   message: `Created ${type} room "${name}" in workspace ${workspaceId}`
                 }, null, 2)
+              }
+            ],
+          };
+        }
+
+        case 'create-mural': {
+          const schema = z.object({
+            roomId: z.number(),
+            title: z.string().optional(),
+            backgroundColor: z.string().optional(),
+            width: z.number().optional(),
+            height: z.number().optional(),
+            infinite: z.boolean().optional(),
+            folderId: z.string().optional()
+          });
+          const { roomId, ...options } = schema.parse(args);
+          const mural = await muralClient.createMural(roomId, options);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({ mural, message: `Created mural in room ${roomId}` }, null, 2)
+              }
+            ],
+          };
+        }
+
+        case 'update-mural': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            title: z.string().optional(),
+            backgroundColor: z.string().optional(),
+            favorite: z.boolean().optional(),
+            status: z.enum(['active', 'archived']).optional(),
+            width: z.number().optional(),
+            height: z.number().optional(),
+            infinite: z.boolean().optional(),
+            visitorsPermission: z.enum(['read', 'write', 'none']).optional(),
+            workspaceMembersPermission: z.enum(['read', 'write', 'none']).optional(),
+            folderId: z.string().optional()
+          });
+          const { muralId, ...updates } = schema.parse(args);
+          if (Object.keys(updates).length === 0) {
+            throw new Error('update-mural requires at least one field to update');
+          }
+          const mural = await muralClient.updateMural(muralId, updates);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({ mural, message: `Updated mural ${muralId}` }, null, 2)
+              }
+            ],
+          };
+        }
+
+        case 'delete-mural': {
+          const schema = z.object({
+            muralId: z.string().min(1)
+          });
+          const { muralId } = schema.parse(args);
+          await muralClient.deleteMural(muralId);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({ message: `Deleted mural ${muralId}` }, null, 2)
+              }
+            ],
+          };
+        }
+
+        case 'duplicate-mural': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            roomId: z.number(),
+            title: z.string().min(1),
+            folderId: z.string().optional(),
+            infinite: z.boolean().optional()
+          });
+          const { muralId, roomId, title, ...options } = schema.parse(args);
+          const mural = await muralClient.duplicateMural(muralId, roomId, title, options);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({ mural, message: `Duplicated mural ${muralId} into room ${roomId}` }, null, 2)
+              }
+            ],
+          };
+        }
+
+        case 'export-mural': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            downloadFormat: z.string().min(1)
+          });
+          const { muralId, downloadFormat } = schema.parse(args);
+          const result = await muralClient.exportMural(muralId, downloadFormat);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({ export: result, message: `Exported mural ${muralId} as ${downloadFormat}` }, null, 2)
               }
             ],
           };
