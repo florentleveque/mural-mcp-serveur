@@ -70,9 +70,9 @@ A Model Context Protocol (MCP) server that provides integration with the Mural v
 ### Option 1: Install from npm (Recommended)
 
 ```bash
-npm install -g mural-mcp-serveur
+npm install -g @florentleveque/mural-mcp-serveur
 # or
-pnpm add -g mural-mcp-serveur
+pnpm add -g @florentleveque/mural-mcp-serveur
 ```
 
 ### Option 2: Install from source

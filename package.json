@@ -1,11 +1,14 @@
 {
-  "name": "mural-mcp-serveur",
+  "name": "@florentleveque/mural-mcp-serveur",
   "version": "0.5.2",
   "description": "Model Context Protocol server for Mural visual collaboration platform",
   "type": "module",
   "main": "build/index.js",
   "bin": {
     "mural-mcp-serveur": "./build/index.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsc && chmod +x build/index.js",
