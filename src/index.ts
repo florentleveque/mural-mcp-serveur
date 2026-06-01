@@ -10,9 +10,9 @@ import {
 import { z } from 'zod';
 import { MuralClient } from './mural-client.js';
 
-const REQUIRED_ENV_VARS = ['MURAL_CLIENT_ID'] as const;
+const REQUIRED_ENV_VARS = ['MURAL_CLIENT_ID', 'MURAL_CLIENT_SECRET'] as const;
 
-function validateEnvironment(): { clientId: string; clientSecret?: string; redirectUri?: string } {
+function validateEnvironment(): { clientId: string; clientSecret: string; redirectUri?: string } {
   const clientId = process.env.MURAL_CLIENT_ID;
   if (!clientId) {
     throw new Error(
@@ -21,9 +21,18 @@ function validateEnvironment(): { clientId: string; clientSecret?: string; redir
     );
   }
 
+  const clientSecret = process.env.MURAL_CLIENT_SECRET;
+  if (!clientSecret) {
+    throw new Error(
+      'Missing required environment variable: MURAL_CLIENT_SECRET. ' +
+      'Mural requires client authentication (the client secret) for the OAuth token exchange. ' +
+      'Copy it from your Mural app (Basic Information page) and set it in your environment or .env file.'
+    );
+  }
+
   return {
     clientId,
-    clientSecret: process.env.MURAL_CLIENT_SECRET,
+    clientSecret,
     redirectUri: process.env.MURAL_REDIRECT_URI
   };
 }
