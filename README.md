@@ -107,33 +107,56 @@ Create a `.env` file with the following variables:
 # Required: Your Mural app's client ID
 MURAL_CLIENT_ID=your_client_id_here
 
-# Optional: Your Mural app's client secret (recommended)
+# Required: Your Mural app's client secret (Mural requires it for the token exchange)
 MURAL_CLIENT_SECRET=your_client_secret_here
 
 # Optional: OAuth redirect URI (defaults to http://localhost:3000/callback)
 MURAL_REDIRECT_URI=http://localhost:3000/callback
 ```
 
-### Mural OAuth App Setup
+> Both `MURAL_CLIENT_ID` **and** `MURAL_CLIENT_SECRET` are required: Mural mandates client authentication (the secret) on every token exchange — there is no public-client / PKCE-without-secret mode.
 
-1. Visit [Mural Developer Portal](https://app.mural.co/developer)
-2. Create a new application
-3. Set the redirect URI to `http://localhost:3000/callback` (or your custom URI)
-4. Note your Client ID and Client Secret
-5. Configure the required scopes: `workspaces:read`, `rooms:read`, `rooms:write`, `murals:read`, `murals:write`, `templates:read`, `templates:write`, `identity:read` (the 8 scopes the server requests)
+### Mural OAuth App Setup (step by step)
+
+You need your own Mural OAuth app. A regular Mural account is enough (no separate developer account).
+
+1. Sign in at [app.mural.co](https://app.mural.co).
+2. Open **"Create and manage apps"** (from your account/avatar menu) → the **"My apps"** page.
+3. Click **"New app"**.
+4. Fill in **App name** (e.g. `mural-mcp`) and **Redirect URL** = `http://localhost:3000/callback`, then **"Save and continue"**.
+5. On the **Basic Information** page, copy your **Client ID** and **Client secret**.
+   - ⚠️ The **Client secret is shown only once** — copy it right away (if lost, use **Reset** to regenerate one).
+6. Tick the **Authorization scopes** the server uses, then save:
+   `workspaces:read`, `rooms:read`, `rooms:write`, `murals:read`, `murals:write`, `templates:read`, `templates:write`, `identity:read`.
+7. Set both values as `MURAL_CLIENT_ID` / `MURAL_CLIENT_SECRET` in your client config.
+
+> No approval is required — the app works immediately, and `http://localhost` is accepted for local use.
 
 ## Usage
 
+The easiest way is via `npx` (no install needed, always the latest published version).
+
+### With Claude Code (CLI)
+
+```bash
+claude mcp add mural \
+  -e MURAL_CLIENT_ID=your_client_id_here \
+  -e MURAL_CLIENT_SECRET=your_client_secret_here \
+  -- npx -y @florentleveque/mural-mcp-serveur
+```
+
+(add `--scope user` to make it available in all your projects, or `--scope project` to share it via the repo's `.mcp.json`).
+
 ### With Claude Desktop
 
-Add to your Claude Desktop configuration (`claude_desktop_config.json`):
+Add to your Claude Desktop configuration (`claude_desktop_config.json`), then restart Claude Desktop:
 
 ```json
 {
   "mcpServers": {
     "mural": {
-      "command": "node",
-      "args": ["/absolute/path/to/mural-mcp-serveur/build/index.js"],
+      "command": "npx",
+      "args": ["-y", "@florentleveque/mural-mcp-serveur"],
       "env": {
         "MURAL_CLIENT_ID": "your_client_id_here",
         "MURAL_CLIENT_SECRET": "your_client_secret_here"
@@ -142,6 +165,8 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
   }
 }
 ```
+
+> Installed from source instead? Use `"command": "node", "args": ["/absolute/path/to/mural-mcp-serveur/build/index.js"]`.
 
 ### Standalone Usage
 
