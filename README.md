@@ -4,21 +4,60 @@
 
 A Model Context Protocol (MCP) server that provides integration with the Mural visual collaboration platform. This server enables AI assistants to interact with Mural workspaces through OAuth 2.0 authentication.
 
-> **Note**: This is v0.0.1 - an early MVP release focused on workspace listing functionality. More features are planned for future releases.
+> Broad read/write access to the Mural public API — workspaces, rooms, templates, murals (full CRUD) and widgets — over OAuth 2.0 with PKCE.
 
 ## Features
 
 - **OAuth 2.0 Authentication**: Secure authentication with PKCE support
-- **Workspace Management**: List and retrieve workspace information
+- **Workspaces & Rooms**: list workspaces and rooms (incl. open rooms), create rooms
+- **Templates**: list/search a workspace's templates, create a mural from a template
+- **Murals**: full CRUD — create (blank or from template), read, update, delete, duplicate, export
+- **Widgets**: read, create and update sticky notes, shapes, arrows, text boxes, titles and areas; delete widgets
+- **Pagination**: list endpoints follow the API cursor to return all items
 - **MCP Compliance**: Full Model Context Protocol compatibility
 - **Token Management**: Automatic token refresh and secure storage
 
 ## Tools Available
 
+**Authentication & utilities**
+- `test-connection`: Test the connection to Mural API and verify authentication
+- `clear-auth`: Clear stored authentication tokens (forces re-authentication)
+- `check-user-scopes`: Show the current token's OAuth scopes
+- `get-rate-limit-status`: Current rate-limiting status
+- `debug-api-response`: Raw workspaces API response (troubleshooting)
+
+**Workspaces**
 - `list-workspaces`: List all workspaces the authenticated user has access to
 - `get-workspace`: Get detailed information about a specific workspace
-- `test-connection`: Test the connection to Mural API and verify authentication
-- `clear-auth`: Clear stored authentication tokens
+
+**Rooms**
+- `list-workspace-rooms`: List a workspace's rooms (option `openOnly`)
+- `list-room-boards`: List the murals within a room
+- `create-room`: Create a room (`open`/`private`)
+
+**Templates**
+- `list-workspace-templates`: List a workspace's templates (default + custom), or search by name
+- `create-mural-from-template`: Create a mural in a room from a template
+
+**Murals**
+- `list-workspace-boards`: List a workspace's murals
+- `get-board`: Get details of a specific mural
+- `create-mural`: Create a blank mural in a room
+- `update-mural`: Update a mural (title, status `active`/`archived`, dimensions, sharing…)
+- `delete-mural`: Permanently delete a mural (irreversible)
+- `duplicate-mural`: Duplicate a mural into a room
+- `export-mural`: Export a mural in a given format
+
+**Widgets**
+- `get-mural-widgets`: Get all widgets of a mural (paginated)
+- `get-mural-widget`: Get a specific widget by id
+- `create-sticky-notes`: Create sticky notes (up to 1000 per request)
+- `update-sticky-note`: Update a sticky note
+- `create-shapes` / `create-arrows` / `create-text-boxes` / `create-titles` / `create-areas`: Create the corresponding widgets
+- `update-widget`: Update any widget by kind and id
+- `delete-widget`: Permanently delete a widget by id
+
+> Write operations require the matching OAuth scopes (`rooms:write`, `murals:write`, `templates:write`).
 
 ## Prerequisites
 
@@ -31,17 +70,17 @@ A Model Context Protocol (MCP) server that provides integration with the Mural v
 ### Option 1: Install from npm (Recommended)
 
 ```bash
-npm install -g mural-mcp
+npm install -g mural-mcp-serveur
 # or
-pnpm add -g mural-mcp
+pnpm add -g mural-mcp-serveur
 ```
 
 ### Option 2: Install from source
 
 1. Clone and install dependencies:
 ```bash
-git clone https://github.com/your-username/mural-mcp.git
-cd mural-mcp
+git clone https://github.com/florentleveque/mural-mcp-serveur.git
+cd mural-mcp-serveur
 pnpm install
 ```
 
@@ -81,7 +120,7 @@ MURAL_REDIRECT_URI=http://localhost:3000/callback
 2. Create a new application
 3. Set the redirect URI to `http://localhost:3000/callback` (or your custom URI)
 4. Note your Client ID and Client Secret
-5. Configure the required scopes: `workspaces:read`
+5. Configure the required scopes: `workspaces:read`, `rooms:read`, `rooms:write`, `murals:read`, `murals:write`, `templates:read`, `templates:write`, `identity:read` (the 8 scopes the server requests)
 
 ## Usage
 
@@ -94,7 +133,7 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
   "mcpServers": {
     "mural": {
       "command": "node",
-      "args": ["/absolute/path/to/mural-mcp/build/index.js"],
+      "args": ["/absolute/path/to/mural-mcp-serveur/build/index.js"],
       "env": {
         "MURAL_CLIENT_ID": "your_client_id_here",
         "MURAL_CLIENT_SECRET": "your_client_secret_here"
@@ -182,11 +221,12 @@ Assistant: I'll list your Mural workspaces using the list-workspaces tool.
 ### Project Structure
 
 ```
-mural-mcp/
+mural-mcp-serveur/
 ├── src/
-│   ├── index.ts          # Main MCP server
+│   ├── index.ts          # Main MCP server (tool definitions + handlers)
 │   ├── oauth.ts          # OAuth 2.0 implementation
 │   ├── mural-client.ts   # Mural API client
+│   ├── rate-limiter.ts   # API rate limiting
 │   └── types.ts          # TypeScript interfaces
 ├── build/                # Compiled output
 ├── spec/                 # Documentation
