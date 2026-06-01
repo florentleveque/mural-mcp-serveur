@@ -242,7 +242,7 @@ export class MuralClient {
       const endpoint = `${path}${queryString ? `?${queryString}` : ''}`;
 
       const response = await this.makeAuthenticatedRequest<any>(endpoint);
-      const pageItems = response.value ?? response;
+      const pageItems = response.value ?? response.widgets ?? response;
       if (Array.isArray(pageItems)) {
         items.push(...pageItems);
       }
@@ -645,15 +645,14 @@ export class MuralClient {
   // Widget operations
   async getMuralWidgets(muralId: string): Promise<MuralWidget[]> {
     try {
-      const scopeCheck = await this.checkScope('murals:read');
-      if (!scopeCheck.hasScope) {
+      // Paginated: follows the API's `next` cursor so all widgets are returned
+      // (the endpoint pages at ~100 widgets).
+      return await this.fetchAllPages<MuralWidget>(`/murals/${encodeURIComponent(muralId)}/widgets`, 'murals:read');
+    } catch (error) {
+      if (error instanceof Error && (error.message.includes('403') || error.message.includes('scope'))) {
+        const scopeCheck = await this.checkScope('murals:read');
         throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'murals:read' scope and re-authenticate.`);
       }
-
-      const response = await this.makeAuthenticatedRequest<any>(`/murals/${encodeURIComponent(muralId)}/widgets`);
-      const widgets = response.value || response.widgets || response;
-      return Array.isArray(widgets) ? widgets : [];
-    } catch (error) {
       console.error(`Failed to fetch widgets for mural ${muralId}:`, error);
       throw error;
     }
