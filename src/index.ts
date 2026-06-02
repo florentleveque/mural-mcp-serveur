@@ -10,9 +10,9 @@ import {
 import { z } from 'zod';
 import { MuralClient } from './mural-client.js';
 
-const REQUIRED_ENV_VARS = ['MURAL_CLIENT_ID'] as const;
+const REQUIRED_ENV_VARS = ['MURAL_CLIENT_ID', 'MURAL_CLIENT_SECRET'] as const;
 
-function validateEnvironment(): { clientId: string; clientSecret?: string; redirectUri?: string } {
+function validateEnvironment(): { clientId: string; clientSecret: string; redirectUri?: string } {
   const clientId = process.env.MURAL_CLIENT_ID;
   if (!clientId) {
     throw new Error(
@@ -21,9 +21,18 @@ function validateEnvironment(): { clientId: string; clientSecret?: string; redir
     );
   }
 
+  const clientSecret = process.env.MURAL_CLIENT_SECRET;
+  if (!clientSecret) {
+    throw new Error(
+      'Missing required environment variable: MURAL_CLIENT_SECRET. ' +
+      'Mural requires client authentication (the client secret) for the OAuth token exchange. ' +
+      'Copy it from your Mural app (Basic Information page) and set it in your environment or .env file.'
+    );
+  }
+
   return {
     clientId,
-    clientSecret: process.env.MURAL_CLIENT_SECRET,
+    clientSecret,
     redirectUri: process.env.MURAL_REDIRECT_URI
   };
 }
@@ -35,7 +44,7 @@ async function main() {
 
   const server = new Server(
     {
-      name: 'mural-mcp-server',
+      name: 'mural-mcp-serveur',
       version: '1.0.0',
     },
     {
@@ -152,6 +161,188 @@ async function main() {
           },
         },
         {
+          name: 'list-workspace-rooms',
+          description: 'List all rooms within a specific workspace (use a room id with list-room-boards). Returns all pages.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              workspaceId: {
+                type: 'string',
+                description: 'The unique identifier of the workspace'
+              },
+              openOnly: {
+                type: 'boolean',
+                description: 'If true, list only open (discoverable) rooms instead of all rooms (optional, defaults to false)'
+              }
+            },
+            required: ['workspaceId'],
+            additionalProperties: false
+          },
+        },
+        {
+          name: 'list-workspace-templates',
+          description: 'List a workspace\'s templates (default + custom), or search them by name. Returns all pages.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              workspaceId: {
+                type: 'string',
+                description: 'The unique identifier of the workspace'
+              },
+              searchQuery: {
+                type: 'string',
+                description: 'Optional. If provided, search templates by name instead of listing all'
+              },
+              withoutDefault: {
+                type: 'boolean',
+                description: 'If true, exclude Mural default templates and return only custom ones (optional, ignored when searchQuery is set)'
+              }
+            },
+            required: ['workspaceId'],
+            additionalProperties: false
+          },
+        },
+        {
+          name: 'create-mural-from-template',
+          description: 'Create a new mural in a room from a template',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              templateId: {
+                type: 'string',
+                description: 'The unique identifier of the template to instantiate'
+              },
+              title: {
+                type: 'string',
+                description: 'Title of the new mural'
+              },
+              roomId: {
+                type: 'number',
+                description: 'The numeric identifier of the destination room'
+              },
+              folderId: {
+                type: 'string',
+                description: 'Optional destination folder id within the room'
+              }
+            },
+            required: ['templateId', 'title', 'roomId'],
+            additionalProperties: false
+          },
+        },
+        {
+          name: 'create-room',
+          description: 'Create a new room in a workspace',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              workspaceId: {
+                type: 'string',
+                description: 'The unique identifier of the workspace'
+              },
+              name: {
+                type: 'string',
+                description: 'Name of the new room'
+              },
+              type: {
+                type: 'string',
+                enum: ['open', 'private'],
+                description: 'Room visibility: "open" (discoverable by workspace members) or "private"'
+              },
+              description: {
+                type: 'string',
+                description: 'Optional description of the room'
+              },
+              confidential: {
+                type: 'boolean',
+                description: 'Optional. Mark the room as confidential (defaults to false)'
+              }
+            },
+            required: ['workspaceId', 'name', 'type'],
+            additionalProperties: false
+          },
+        },
+        {
+          name: 'create-mural',
+          description: 'Create a new blank mural in a room (requires murals:write)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              roomId: { type: 'number', description: 'The numeric identifier of the destination room' },
+              title: { type: 'string', description: 'Optional title of the new mural' },
+              backgroundColor: { type: 'string', description: 'Optional background color (hex, e.g. #FFFFFFFF)' },
+              width: { type: 'number', description: 'Optional canvas width in pixels' },
+              height: { type: 'number', description: 'Optional canvas height in pixels' },
+              infinite: { type: 'boolean', description: 'Optional. Whether the canvas is infinite' },
+              folderId: { type: 'string', description: 'Optional destination folder id within the room' }
+            },
+            required: ['roomId'],
+            additionalProperties: false
+          },
+        },
+        {
+          name: 'update-mural',
+          description: 'Update a mural\'s properties by id (title, status, dimensions, sharing permissions...). Provide at least one field (requires murals:write)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string', description: 'The unique identifier of the mural to update' },
+              title: { type: 'string' },
+              backgroundColor: { type: 'string', description: 'Hex background color' },
+              favorite: { type: 'boolean' },
+              status: { type: 'string', enum: ['active', 'archived'], description: 'Set to "archived" to archive the mural (non-destructive alternative to delete)' },
+              width: { type: 'number', description: 'Canvas width (3000-60000)' },
+              height: { type: 'number', description: 'Canvas height (3000-60000)' },
+              infinite: { type: 'boolean' },
+              visitorsPermission: { type: 'string', enum: ['read', 'write', 'none'] },
+              workspaceMembersPermission: { type: 'string', enum: ['read', 'write', 'none'] },
+              folderId: { type: 'string' }
+            },
+            required: ['muralId'],
+            additionalProperties: false
+          },
+        },
+        {
+          name: 'delete-mural',
+          description: 'Permanently delete a mural by its id (irreversible; requires murals:write). For a non-destructive alternative, use update-mural with status "archived"',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string', description: 'The unique identifier of the mural to delete' }
+            },
+            required: ['muralId'],
+            additionalProperties: false
+          },
+        },
+        {
+          name: 'duplicate-mural',
+          description: 'Duplicate an existing mural into a room (requires murals:write)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string', description: 'The unique identifier of the mural to duplicate' },
+              roomId: { type: 'number', description: 'The numeric identifier of the destination room' },
+              title: { type: 'string', description: 'Title of the duplicated mural' },
+              folderId: { type: 'string', description: 'Optional destination folder id' },
+              infinite: { type: 'boolean', description: 'Optional. Whether the canvas is infinite' }
+            },
+            required: ['muralId', 'roomId', 'title'],
+            additionalProperties: false
+          },
+        },
+        {
+          name: 'export-mural',
+          description: 'Export a mural in a given format (requires murals:read). Accepted downloadFormat values are defined by the Mural API',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string', description: 'The unique identifier of the mural to export' },
+              downloadFormat: { type: 'string', description: 'The export format (e.g. pdf, png, zip — values defined by the Mural API)' }
+            },
+            required: ['muralId', 'downloadFormat'],
+            additionalProperties: false
+          },
+        },
+        {
           name: 'get-board',
           description: 'Get detailed information about a specific board (mural)',
           inputSchema: {
@@ -193,7 +384,7 @@ async function main() {
         },
         {
           name: 'get-mural-widget',
-          description: 'Get details of a specific widget by ID',
+          description: 'Get details of a specific widget by its ID (requires both the mural id and the widget id)',
           inputSchema: {
             type: 'object',
             properties: {
@@ -212,7 +403,7 @@ async function main() {
         },
         {
           name: 'delete-widget',
-          description: 'Delete a widget by ID',
+          description: 'Permanently delete a widget from a mural by its ID (irreversible)',
           inputSchema: {
             type: 'object',
             properties: {
@@ -272,6 +463,247 @@ async function main() {
             required: ['muralId', 'stickyNotes'],
             additionalProperties: false
           },
+        },
+        // Shape widget
+        {
+          name: 'create-shapes',
+          description: 'Create shape widgets (rectangle, circle, triangle, diamond) on a mural. Each shape supports fill, border, and optional text.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string', description: 'The unique identifier of the mural' },
+              shapes: {
+                type: 'array',
+                description: 'Array of shape widgets to create',
+                items: {
+                  type: 'object',
+                  properties: {
+                    x: { type: 'number' },
+                    y: { type: 'number' },
+                    width: { type: 'number' },
+                    height: { type: 'number' },
+                    shape: { type: 'string', enum: ['rectangle', 'circle', 'triangle', 'diamond'], description: 'Shape geometry' },
+                    text: { type: 'string', description: 'Optional text content rendered inside the shape' },
+                    rotation: { type: 'number' },
+                    style: {
+                      type: 'object',
+                      properties: {
+                        backgroundColor: { type: 'string' },
+                        borderColor: { type: 'string' },
+                        borderWidth: { type: 'number' },
+                        borderStyle: { type: 'string', enum: ['solid', 'dashed', 'dotted'] },
+                        fontColor: { type: 'string' },
+                        fontSize: { type: 'number' },
+                        fontFamily: { type: 'string' },
+                        bold: { type: 'boolean' },
+                        italic: { type: 'boolean' },
+                        textAlign: { type: 'string', enum: ['left', 'center', 'right'] }
+                      },
+                      additionalProperties: true
+                    }
+                  },
+                  required: ['x', 'y', 'width', 'height', 'shape'],
+                  additionalProperties: true
+                },
+                minItems: 1
+              }
+            },
+            required: ['muralId', 'shapes'],
+            additionalProperties: false
+          }
+        },
+        // Arrow / connector widget
+        {
+          name: 'create-arrows',
+          description: 'Create arrow (connector) widgets on a mural. Arrows can anchor to other widgets via startRefId/endRefId or use absolute start/end points in the points array.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string', description: 'The unique identifier of the mural' },
+              arrows: {
+                type: 'array',
+                description: 'Array of arrow widgets to create',
+                items: {
+                  type: 'object',
+                  properties: {
+                    x: { type: 'number' },
+                    y: { type: 'number' },
+                    width: { type: 'number' },
+                    height: { type: 'number' },
+                    points: {
+                      type: 'array',
+                      description: 'Two or more {x,y} points defining the arrow path. Coordinates are relative to x/y or absolute depending on Mural API version.',
+                      items: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } }, required: ['x', 'y'], additionalProperties: false },
+                      minItems: 2
+                    },
+                    arrowType: { type: 'string', enum: ['straight', 'curved', 'orthogonal'] },
+                    tip: { type: 'string', enum: ['no tip', 'single', 'double'] },
+                    startRefId: { type: 'string', description: 'Widget ID that the arrow starts at (anchors to widget)' },
+                    endRefId: { type: 'string', description: 'Widget ID that the arrow ends at (anchors to widget)' },
+                    label: { type: 'object', description: 'Optional label attached to the arrow' },
+                    style: {
+                      type: 'object',
+                      properties: {
+                        color: { type: 'string' },
+                        width: { type: 'number' },
+                        arrowheadType: { type: 'string' },
+                        strokeStyle: { type: 'string', enum: ['solid', 'dashed', 'dotted'] }
+                      },
+                      additionalProperties: true
+                    }
+                  },
+                  required: ['x', 'y', 'width', 'height', 'points'],
+                  additionalProperties: true
+                },
+                minItems: 1
+              }
+            },
+            required: ['muralId', 'arrows'],
+            additionalProperties: false
+          }
+        },
+        // Text box widget
+        {
+          name: 'create-text-boxes',
+          description: 'Create text box widgets on a mural. Unlike sticky notes, text boxes support full font color, font size, and alignment.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string' },
+              textBoxes: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    x: { type: 'number' },
+                    y: { type: 'number' },
+                    width: { type: 'number' },
+                    height: { type: 'number' },
+                    text: { type: 'string' },
+                    rotation: { type: 'number' },
+                    style: {
+                      type: 'object',
+                      properties: {
+                        backgroundColor: { type: 'string' },
+                        fontColor: { type: 'string' },
+                        fontSize: { type: 'number' },
+                        fontFamily: { type: 'string' },
+                        bold: { type: 'boolean' },
+                        italic: { type: 'boolean' },
+                        textAlign: { type: 'string', enum: ['left', 'center', 'right'] },
+                        border: { type: 'boolean' },
+                        borderColor: { type: 'string' },
+                        borderWidth: { type: 'number' }
+                      },
+                      additionalProperties: true
+                    }
+                  },
+                  required: ['x', 'y', 'width', 'height', 'text'],
+                  additionalProperties: true
+                },
+                minItems: 1
+              }
+            },
+            required: ['muralId', 'textBoxes'],
+            additionalProperties: false
+          }
+        },
+        // Title widget
+        {
+          name: 'create-titles',
+          description: 'Create title widgets (large heading text) on a mural.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string' },
+              titles: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    x: { type: 'number' },
+                    y: { type: 'number' },
+                    width: { type: 'number' },
+                    height: { type: 'number' },
+                    text: { type: 'string' },
+                    style: {
+                      type: 'object',
+                      properties: {
+                        fontColor: { type: 'string' },
+                        fontSize: { type: 'number' },
+                        fontFamily: { type: 'string' },
+                        bold: { type: 'boolean' },
+                        italic: { type: 'boolean' },
+                        textAlign: { type: 'string', enum: ['left', 'center', 'right'] }
+                      },
+                      additionalProperties: true
+                    }
+                  },
+                  required: ['x', 'y', 'text'],
+                  additionalProperties: true
+                },
+                minItems: 1
+              }
+            },
+            required: ['muralId', 'titles'],
+            additionalProperties: false
+          }
+        },
+        // Area widget (grouping container)
+        {
+          name: 'create-areas',
+          description: 'Create area widgets (grouping containers) on a mural.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string' },
+              areas: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    x: { type: 'number' },
+                    y: { type: 'number' },
+                    width: { type: 'number' },
+                    height: { type: 'number' },
+                    title: { type: 'string' },
+                    style: {
+                      type: 'object',
+                      properties: {
+                        backgroundColor: { type: 'string' },
+                        borderColor: { type: 'string' },
+                        borderWidth: { type: 'number' },
+                        fontColor: { type: 'string' },
+                        fontSize: { type: 'number' }
+                      },
+                      additionalProperties: true
+                    }
+                  },
+                  required: ['x', 'y', 'width', 'height'],
+                  additionalProperties: true
+                },
+                minItems: 1
+              }
+            },
+            required: ['muralId', 'areas'],
+            additionalProperties: false
+          }
+        },
+        // Generic update tool — works for any widget kind
+        {
+          name: 'update-widget',
+          description: 'Update any widget by kind and ID (sticky-note, shape, arrow, text-box, title, area). Accepts arbitrary field updates.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string' },
+              kind: { type: 'string', enum: ['sticky-note', 'shape', 'arrow', 'text-box', 'title', 'area'] },
+              widgetId: { type: 'string' },
+              updates: { type: 'object', additionalProperties: true }
+            },
+            required: ['muralId', 'kind', 'widgetId', 'updates'],
+            additionalProperties: false
+          }
         },
         // PATCH/Update tools
         {
@@ -482,6 +914,214 @@ async function main() {
                     ? `No boards found in room ${roomId}`
                     : `Found ${boards.length} board${boards.length === 1 ? '' : 's'} in room`
                 }, null, 2)
+              }
+            ],
+          };
+        }
+
+        case 'list-workspace-rooms': {
+          const schema = z.object({
+            workspaceId: z.string().min(1),
+            openOnly: z.boolean().optional().default(false)
+          });
+
+          const { workspaceId, openOnly } = schema.parse(args);
+          const rooms = await muralClient.getWorkspaceRooms(workspaceId, openOnly);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  rooms,
+                  count: rooms.length,
+                  workspaceId,
+                  openOnly,
+                  message: rooms.length === 0
+                    ? `No rooms found in workspace ${workspaceId}`
+                    : `Found ${rooms.length} room${rooms.length === 1 ? '' : 's'} in workspace`
+                }, null, 2)
+              }
+            ],
+          };
+        }
+
+        case 'list-workspace-templates': {
+          const schema = z.object({
+            workspaceId: z.string().min(1),
+            searchQuery: z.string().optional(),
+            withoutDefault: z.boolean().optional().default(false)
+          });
+
+          const { workspaceId, searchQuery, withoutDefault } = schema.parse(args);
+          const templates = await muralClient.getWorkspaceTemplates(workspaceId, searchQuery, withoutDefault);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  templates,
+                  count: templates.length,
+                  workspaceId,
+                  searchQuery: searchQuery ?? null,
+                  message: templates.length === 0
+                    ? `No templates found in workspace ${workspaceId}${searchQuery ? ` matching "${searchQuery}"` : ''}`
+                    : `Found ${templates.length} template${templates.length === 1 ? '' : 's'}`
+                }, null, 2)
+              }
+            ],
+          };
+        }
+
+        case 'create-mural-from-template': {
+          const schema = z.object({
+            templateId: z.string().min(1),
+            title: z.string().min(1),
+            roomId: z.number(),
+            folderId: z.string().optional()
+          });
+
+          const { templateId, title, roomId, folderId } = schema.parse(args);
+          const mural = await muralClient.createMuralFromTemplate(templateId, title, roomId, folderId);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  mural,
+                  message: `Created mural "${title}" from template ${templateId} in room ${roomId}`
+                }, null, 2)
+              }
+            ],
+          };
+        }
+
+        case 'create-room': {
+          const schema = z.object({
+            workspaceId: z.string().min(1),
+            name: z.string().min(1),
+            type: z.enum(['open', 'private']),
+            description: z.string().optional(),
+            confidential: z.boolean().optional()
+          });
+
+          const { workspaceId, name, type, description, confidential } = schema.parse(args);
+          const room = await muralClient.createRoom(workspaceId, name, type, description, confidential);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  room,
+                  message: `Created ${type} room "${name}" in workspace ${workspaceId}`
+                }, null, 2)
+              }
+            ],
+          };
+        }
+
+        case 'create-mural': {
+          const schema = z.object({
+            roomId: z.number(),
+            title: z.string().optional(),
+            backgroundColor: z.string().optional(),
+            width: z.number().optional(),
+            height: z.number().optional(),
+            infinite: z.boolean().optional(),
+            folderId: z.string().optional()
+          });
+          const { roomId, ...options } = schema.parse(args);
+          const mural = await muralClient.createMural(roomId, options);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({ mural, message: `Created mural in room ${roomId}` }, null, 2)
+              }
+            ],
+          };
+        }
+
+        case 'update-mural': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            title: z.string().optional(),
+            backgroundColor: z.string().optional(),
+            favorite: z.boolean().optional(),
+            status: z.enum(['active', 'archived']).optional(),
+            width: z.number().optional(),
+            height: z.number().optional(),
+            infinite: z.boolean().optional(),
+            visitorsPermission: z.enum(['read', 'write', 'none']).optional(),
+            workspaceMembersPermission: z.enum(['read', 'write', 'none']).optional(),
+            folderId: z.string().optional()
+          });
+          const { muralId, ...updates } = schema.parse(args);
+          if (Object.keys(updates).length === 0) {
+            throw new Error('update-mural requires at least one field to update');
+          }
+          const mural = await muralClient.updateMural(muralId, updates);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({ mural, message: `Updated mural ${muralId}` }, null, 2)
+              }
+            ],
+          };
+        }
+
+        case 'delete-mural': {
+          const schema = z.object({
+            muralId: z.string().min(1)
+          });
+          const { muralId } = schema.parse(args);
+          await muralClient.deleteMural(muralId);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({ message: `Deleted mural ${muralId}` }, null, 2)
+              }
+            ],
+          };
+        }
+
+        case 'duplicate-mural': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            roomId: z.number(),
+            title: z.string().min(1),
+            folderId: z.string().optional(),
+            infinite: z.boolean().optional()
+          });
+          const { muralId, roomId, title, ...options } = schema.parse(args);
+          const mural = await muralClient.duplicateMural(muralId, roomId, title, options);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({ mural, message: `Duplicated mural ${muralId} into room ${roomId}` }, null, 2)
+              }
+            ],
+          };
+        }
+
+        case 'export-mural': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            downloadFormat: z.string().min(1)
+          });
+          const { muralId, downloadFormat } = schema.parse(args);
+          const result = await muralClient.exportMural(muralId, downloadFormat);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({ export: result, message: `Exported mural ${muralId} as ${downloadFormat}` }, null, 2)
               }
             ],
           };
@@ -712,6 +1352,157 @@ async function main() {
                 }, null, 2)
               }
             ],
+          };
+        }
+
+        case 'delete-widget': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            widgetId: z.string().min(1)
+          });
+          const { muralId, widgetId } = schema.parse(args);
+          await muralClient.deleteWidget(muralId, widgetId);
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                muralId,
+                widgetId,
+                deleted: true,
+                message: `Successfully deleted widget ${widgetId} from mural ${muralId}`
+              }, null, 2)
+            }]
+          };
+        }
+
+        case 'create-shapes': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            shapes: z.array(z.record(z.string(), z.unknown())).min(1)
+          });
+          const { muralId, shapes } = schema.parse(args);
+          const createdWidgets = await muralClient.createShapes(muralId, shapes as Record<string, unknown>[]);
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                widgets: createdWidgets,
+                count: Array.isArray(createdWidgets) ? createdWidgets.length : 0,
+                muralId,
+                message: `Created ${Array.isArray(createdWidgets) ? createdWidgets.length : 0} shape widget(s)`
+              }, null, 2)
+            }]
+          };
+        }
+
+        case 'create-arrows': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            arrows: z.array(z.record(z.string(), z.unknown())).min(1)
+          });
+          const { muralId, arrows } = schema.parse(args);
+          const createdWidgets = await muralClient.createArrows(muralId, arrows as Record<string, unknown>[]);
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                widgets: createdWidgets,
+                count: Array.isArray(createdWidgets) ? createdWidgets.length : 0,
+                muralId,
+                message: `Created ${Array.isArray(createdWidgets) ? createdWidgets.length : 0} arrow widget(s)`
+              }, null, 2)
+            }]
+          };
+        }
+
+        case 'create-text-boxes': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            textBoxes: z.array(z.record(z.string(), z.unknown())).min(1)
+          });
+          const { muralId, textBoxes } = schema.parse(args);
+          const createdWidgets = await muralClient.createTextBoxes(muralId, textBoxes as Record<string, unknown>[]);
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                widgets: createdWidgets,
+                count: Array.isArray(createdWidgets) ? createdWidgets.length : 0,
+                muralId,
+                message: `Created ${Array.isArray(createdWidgets) ? createdWidgets.length : 0} text-box widget(s)`
+              }, null, 2)
+            }]
+          };
+        }
+
+        case 'create-titles': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            titles: z.array(z.record(z.string(), z.unknown())).min(1)
+          });
+          const { muralId, titles } = schema.parse(args);
+          const createdWidgets = await muralClient.createTitles(muralId, titles as Record<string, unknown>[]);
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                widgets: createdWidgets,
+                count: Array.isArray(createdWidgets) ? createdWidgets.length : 0,
+                muralId,
+                message: `Created ${Array.isArray(createdWidgets) ? createdWidgets.length : 0} title widget(s)`
+              }, null, 2)
+            }]
+          };
+        }
+
+        case 'create-areas': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            areas: z.array(z.record(z.string(), z.unknown())).min(1)
+          });
+          const { muralId, areas } = schema.parse(args);
+          const createdWidgets = await muralClient.createAreas(muralId, areas as Record<string, unknown>[]);
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                widgets: createdWidgets,
+                count: Array.isArray(createdWidgets) ? createdWidgets.length : 0,
+                muralId,
+                message: `Created ${Array.isArray(createdWidgets) ? createdWidgets.length : 0} area widget(s)`
+              }, null, 2)
+            }]
+          };
+        }
+
+        case 'update-widget': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            kind: z.enum(['sticky-note', 'shape', 'arrow', 'text-box', 'title', 'area']),
+            widgetId: z.string().min(1),
+            updates: z.record(z.string(), z.unknown())
+          });
+          const { muralId, kind, widgetId, updates } = schema.parse(args);
+          let updated: any;
+          switch (kind) {
+            case 'sticky-note': updated = await muralClient.updateStickyNote(muralId, widgetId, updates as any); break;
+            case 'shape':       updated = await muralClient.updateShape(muralId, widgetId, updates); break;
+            case 'arrow':       updated = await muralClient.updateArrow(muralId, widgetId, updates); break;
+            case 'text-box':    updated = await muralClient.updateTextBox(muralId, widgetId, updates); break;
+            case 'title':       updated = await muralClient.updateTitle(muralId, widgetId, updates); break;
+            case 'area':        updated = await muralClient.updateArea(muralId, widgetId, updates); break;
+          }
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                widget: updated,
+                muralId,
+                widgetId,
+                kind,
+                message: `Updated ${kind} ${widgetId}`
+              }, null, 2)
+            }]
           };
         }
 

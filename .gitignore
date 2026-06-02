@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-pnpm-lock.yaml
 
 # Build output
 build/
@@ -12,6 +11,9 @@ dist/
 
 # Authentication tokens
 .mural-mcp-tokens.json
+
+# Local MCP server registration (machine-specific absolute path)
+.mcp.json
 
 # IDE
 .vscode/
@@ -44,4 +46,4 @@ coverage/
 *.tsbuildinfo
 
 # Claude IDE settings
-.claude/
+.claude/package-lock.json

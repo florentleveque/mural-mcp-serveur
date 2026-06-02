@@ -1,20 +1,24 @@
 {
-  "name": "mural-mcp",
+  "name": "@florentleveque/mural-mcp-serveur",
   "version": "0.5.2",
   "description": "Model Context Protocol server for Mural visual collaboration platform",
   "type": "module",
   "main": "build/index.js",
   "bin": {
-    "mural-mcp": "./build/index.js"
+    "mural-mcp-serveur": "./build/index.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsc && chmod +x build/index.js",
     "dev": "tsc --watch",
     "start": "node build/index.js",
+    "typecheck": "tsc --noEmit",
     "test": "node tests/run-tests.js",
     "test:parallel": "node tests/run-tests.js --parallel",
     "test:tool": "node tests/run-tests.js --tool=",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "pnpm build"
   },
   "keywords": [
     "mcp",
@@ -25,15 +29,15 @@
     "llm",
     "oauth"
   ],
-  "author": "",
+  "author": "Florent Lévêque <florent.leveque@digital4better.com>",
   "license": "MIT",
-  "homepage": "https://github.com/your-username/mural-mcp#readme",
+  "homepage": "https://github.com/florentleveque/mural-mcp-serveur#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/your-username/mural-mcp.git"
+    "url": "git+https://github.com/florentleveque/mural-mcp-serveur.git"
   },
   "bugs": {
-    "url": "https://github.com/your-username/mural-mcp/issues"
+    "url": "https://github.com/florentleveque/mural-mcp-serveur/issues"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -50,7 +54,15 @@
     "zod": "^4.0.14"
   },
   "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^11.0.1",
+    "@semantic-release/npm": "^12.0.1",
+    "@semantic-release/release-notes-generator": "^14.0.3",
     "@types/node": "^24.2.0",
+    "conventional-changelog-conventionalcommits": "^8.0.0",
+    "semantic-release": "^24.2.3",
     "typescript": "^5.9.2"
   }
 }

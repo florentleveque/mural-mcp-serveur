@@ -1,6 +1,8 @@
 import type {
   MuralWorkspace,
   MuralBoard,
+  MuralRoom,
+  MuralTemplate,
   MuralUser,
   ScopeCheckResult,
   RateLimitConfig,
@@ -132,8 +134,13 @@ export class MuralClient {
           throw new Error(`Mural API request failed: ${errorMessage}`);
         }
 
-        const data = await response.json();
-        return data as T;
+        // Some endpoints (e.g. DELETE) return 204 No Content / an empty body;
+        // calling response.json() on those would throw, so handle empty bodies.
+        if (response.status === 204) {
+          return undefined as T;
+        }
+        const text = await response.text();
+        return (text ? JSON.parse(text) : undefined) as T;
 
       } catch (error) {
         // If it's our last attempt or a non-retryable error, throw
@@ -209,6 +216,233 @@ export class MuralClient {
 
   async resetRateLimits(): Promise<void> {
     await this.rateLimiter.reset();
+  }
+
+  /**
+   * Fetch every page of a cursor-paginated endpoint and return a flat array.
+   * The Mural API paginates list endpoints with `limit` + a `next` cursor.
+   * Checks the OAuth scope once, then follows `next` until exhausted or the
+   * safety cap (`maxPages`) is reached. Existing query params are preserved.
+   */
+  private async fetchAllPages<T>(basePath: string, scope: string, maxPages: number = 100): Promise<T[]> {
+    const scopeCheck = await this.checkScope(scope);
+    if (!scopeCheck.hasScope) {
+      throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has '${scope}' scope and re-authenticate.`);
+    }
+
+    const items: T[] = [];
+    const [path, existingQuery = ''] = basePath.split('?');
+    let next: string | undefined;
+    let page = 0;
+
+    do {
+      const params = new URLSearchParams(existingQuery);
+      if (next) params.set('next', next);
+      const queryString = params.toString();
+      const endpoint = `${path}${queryString ? `?${queryString}` : ''}`;
+
+      const response = await this.makeAuthenticatedRequest<any>(endpoint);
+      const pageItems = response.value ?? response.widgets ?? response;
+      if (Array.isArray(pageItems)) {
+        items.push(...pageItems);
+      }
+      next = response.next;
+      page++;
+    } while (next && page < maxPages);
+
+    if (next && page >= maxPages) {
+      console.error(`fetchAllPages: reached the ${maxPages}-page cap for ${path}; results may be truncated.`);
+    }
+
+    return items;
+  }
+
+  async getWorkspaceRooms(workspaceId: string, openOnly: boolean = false): Promise<MuralRoom[]> {
+    try {
+      const endpoint = openOnly
+        ? `/workspaces/${workspaceId}/rooms/open`
+        : `/workspaces/${workspaceId}/rooms`;
+      return await this.fetchAllPages<MuralRoom>(endpoint, 'rooms:read');
+    } catch (error) {
+      if (error instanceof Error && (error.message.includes('403') || error.message.includes('scope'))) {
+        const scopeCheck = await this.checkScope('rooms:read');
+        throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'rooms:read' scope and re-authenticate.`);
+      }
+      console.error(`Failed to fetch rooms for workspace ${workspaceId}:`, error);
+      throw error;
+    }
+  }
+
+  async getWorkspaceTemplates(workspaceId: string, searchQuery?: string, withoutDefault: boolean = false): Promise<MuralTemplate[]> {
+    try {
+      let endpoint: string;
+      if (searchQuery && searchQuery.trim()) {
+        endpoint = `/search/${workspaceId}/templates?q=${encodeURIComponent(searchQuery.trim())}`;
+      } else {
+        endpoint = `/workspaces/${workspaceId}/templates`;
+        if (withoutDefault) {
+          endpoint += '?withoutDefault=true';
+        }
+      }
+      return await this.fetchAllPages<MuralTemplate>(endpoint, 'templates:read');
+    } catch (error) {
+      if (error instanceof Error && (error.message.includes('403') || error.message.includes('scope'))) {
+        const scopeCheck = await this.checkScope('templates:read');
+        throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'templates:read' scope and re-authenticate.`);
+      }
+      console.error(`Failed to fetch templates for workspace ${workspaceId}:`, error);
+      throw error;
+    }
+  }
+
+  async createMuralFromTemplate(templateId: string, title: string, roomId: number, folderId?: string): Promise<MuralBoard> {
+    try {
+      const scopeCheck = await this.checkScope('murals:write');
+      if (!scopeCheck.hasScope) {
+        throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'murals:write' scope and re-authenticate.`);
+      }
+
+      const body: Record<string, unknown> = { title, roomId };
+      if (folderId) {
+        body.folderId = folderId;
+      }
+
+      const response = await this.makeAuthenticatedRequest<any>(
+        `/templates/${encodeURIComponent(templateId)}/murals`,
+        {
+          method: 'POST',
+          body: JSON.stringify(body)
+        }
+      );
+      return response.value || response;
+    } catch (error) {
+      console.error(`Failed to create mural from template ${templateId}:`, error);
+      throw error;
+    }
+  }
+
+  async createRoom(workspaceId: string, name: string, type: 'open' | 'private', description?: string, confidential?: boolean): Promise<MuralRoom> {
+    try {
+      const scopeCheck = await this.checkScope('rooms:write');
+      if (!scopeCheck.hasScope) {
+        throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'rooms:write' scope and re-authenticate.`);
+      }
+
+      const body: Record<string, unknown> = { name, type, workspaceId };
+      if (description !== undefined) {
+        body.description = description;
+      }
+      if (confidential !== undefined) {
+        body.confidential = confidential;
+      }
+
+      const response = await this.makeAuthenticatedRequest<any>(
+        '/rooms',
+        {
+          method: 'POST',
+          body: JSON.stringify(body)
+        }
+      );
+      return response.value || response;
+    } catch (error) {
+      console.error(`Failed to create room "${name}" in workspace ${workspaceId}:`, error);
+      throw error;
+    }
+  }
+
+  async createMural(roomId: number, options: { title?: string; backgroundColor?: string; width?: number; height?: number; infinite?: boolean; folderId?: string } = {}): Promise<MuralBoard> {
+    try {
+      const scopeCheck = await this.checkScope('murals:write');
+      if (!scopeCheck.hasScope) {
+        throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'murals:write' scope and re-authenticate.`);
+      }
+      const body: Record<string, unknown> = { roomId, ...options };
+      const response = await this.makeAuthenticatedRequest<any>('/murals', {
+        method: 'POST',
+        body: JSON.stringify(body)
+      });
+      return response.value || response;
+    } catch (error) {
+      console.error(`Failed to create mural in room ${roomId}:`, error);
+      throw error;
+    }
+  }
+
+  async updateMural(muralId: string, updates: Record<string, unknown>): Promise<MuralBoard> {
+    try {
+      const scopeCheck = await this.checkScope('murals:write');
+      if (!scopeCheck.hasScope) {
+        throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'murals:write' scope and re-authenticate.`);
+      }
+      const response = await this.makeAuthenticatedRequest<any>(
+        `/murals/${encodeURIComponent(muralId)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(updates)
+        }
+      );
+      return response.value || response;
+    } catch (error) {
+      console.error(`Failed to update mural ${muralId}:`, error);
+      throw error;
+    }
+  }
+
+  async deleteMural(muralId: string): Promise<void> {
+    try {
+      const scopeCheck = await this.checkScope('murals:write');
+      if (!scopeCheck.hasScope) {
+        throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'murals:write' scope and re-authenticate.`);
+      }
+      await this.makeAuthenticatedRequest<void>(
+        `/murals/${encodeURIComponent(muralId)}`,
+        { method: 'DELETE' }
+      );
+    } catch (error) {
+      console.error(`Failed to delete mural ${muralId}:`, error);
+      throw error;
+    }
+  }
+
+  async duplicateMural(muralId: string, roomId: number, title: string, options: { folderId?: string; infinite?: boolean } = {}): Promise<MuralBoard> {
+    try {
+      const scopeCheck = await this.checkScope('murals:write');
+      if (!scopeCheck.hasScope) {
+        throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'murals:write' scope and re-authenticate.`);
+      }
+      const body: Record<string, unknown> = { roomId, title, ...options };
+      const response = await this.makeAuthenticatedRequest<any>(
+        `/murals/${encodeURIComponent(muralId)}/duplicate`,
+        {
+          method: 'POST',
+          body: JSON.stringify(body)
+        }
+      );
+      return response.value || response;
+    } catch (error) {
+      console.error(`Failed to duplicate mural ${muralId}:`, error);
+      throw error;
+    }
+  }
+
+  async exportMural(muralId: string, downloadFormat: string): Promise<any> {
+    try {
+      const scopeCheck = await this.checkScope('murals:read');
+      if (!scopeCheck.hasScope) {
+        throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'murals:read' scope and re-authenticate.`);
+      }
+      const response = await this.makeAuthenticatedRequest<any>(
+        `/murals/${encodeURIComponent(muralId)}/export`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ downloadFormat })
+        }
+      );
+      return response.value || response;
+    } catch (error) {
+      console.error(`Failed to export mural ${muralId}:`, error);
+      throw error;
+    }
   }
 
   async getWorkspaceMurals(workspaceId: string): Promise<MuralBoard[]> {
@@ -411,15 +645,14 @@ export class MuralClient {
   // Widget operations
   async getMuralWidgets(muralId: string): Promise<MuralWidget[]> {
     try {
-      const scopeCheck = await this.checkScope('murals:read');
-      if (!scopeCheck.hasScope) {
+      // Paginated: follows the API's `next` cursor so all widgets are returned
+      // (the endpoint pages at ~100 widgets).
+      return await this.fetchAllPages<MuralWidget>(`/murals/${encodeURIComponent(muralId)}/widgets`, 'murals:read');
+    } catch (error) {
+      if (error instanceof Error && (error.message.includes('403') || error.message.includes('scope'))) {
+        const scopeCheck = await this.checkScope('murals:read');
         throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'murals:read' scope and re-authenticate.`);
       }
-
-      const response = await this.makeAuthenticatedRequest<any>(`/murals/${encodeURIComponent(muralId)}/widgets`);
-      const widgets = response.value || response.widgets || response;
-      return Array.isArray(widgets) ? widgets : [];
-    } catch (error) {
       console.error(`Failed to fetch widgets for mural ${muralId}:`, error);
       throw error;
     }
@@ -502,6 +735,91 @@ export class MuralClient {
       console.error(`Failed to update sticky note ${widgetId} in mural ${muralId}:`, error);
       throw error;
     }
+  }
+
+  // ============================================================================
+  // GENERIC WIDGET CREATION / UPDATE (used by shape, arrow, text-box, title, area)
+  // ============================================================================
+
+  private async createWidgetsOfKind(
+    muralId: string,
+    kind: 'shape' | 'arrow' | 'text-box' | 'title' | 'area',
+    widgets: Record<string, unknown>[]
+  ): Promise<MuralWidget[]> {
+    const scopeCheck = await this.checkScope('murals:write');
+    if (!scopeCheck.hasScope) {
+      throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'murals:write' scope and re-authenticate.`);
+    }
+
+    const response = await this.makeAuthenticatedRequest<any>(
+      `/murals/${encodeURIComponent(muralId)}/widgets/${kind}`,
+      {
+        method: 'POST',
+        body: JSON.stringify(widgets),
+      }
+    );
+    return response.value || response || [];
+  }
+
+  private async updateWidgetOfKind(
+    muralId: string,
+    kind: 'shape' | 'arrow' | 'text-box' | 'title' | 'area' | 'sticky-note',
+    widgetId: string,
+    updates: Record<string, unknown>
+  ): Promise<MuralWidget> {
+    const scopeCheck = await this.checkScope('murals:write');
+    if (!scopeCheck.hasScope) {
+      throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'murals:write' scope and re-authenticate.`);
+    }
+
+    const response = await this.makeAuthenticatedRequest<any>(
+      `/murals/${encodeURIComponent(muralId)}/widgets/${kind}/${encodeURIComponent(widgetId)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(updates),
+      }
+    );
+    return response.value || response;
+  }
+
+  async createShapes(muralId: string, shapes: Record<string, unknown>[]): Promise<MuralWidget[]> {
+    return this.createWidgetsOfKind(muralId, 'shape', shapes);
+  }
+
+  async createArrows(muralId: string, arrows: Record<string, unknown>[]): Promise<MuralWidget[]> {
+    return this.createWidgetsOfKind(muralId, 'arrow', arrows);
+  }
+
+  async createTextBoxes(muralId: string, textBoxes: Record<string, unknown>[]): Promise<MuralWidget[]> {
+    return this.createWidgetsOfKind(muralId, 'text-box', textBoxes);
+  }
+
+  async createTitles(muralId: string, titles: Record<string, unknown>[]): Promise<MuralWidget[]> {
+    return this.createWidgetsOfKind(muralId, 'title', titles);
+  }
+
+  async createAreas(muralId: string, areas: Record<string, unknown>[]): Promise<MuralWidget[]> {
+    return this.createWidgetsOfKind(muralId, 'area', areas);
+  }
+
+  async updateShape(muralId: string, widgetId: string, updates: Record<string, unknown>): Promise<MuralWidget> {
+    return this.updateWidgetOfKind(muralId, 'shape', widgetId, updates);
+  }
+
+  async updateArrow(muralId: string, widgetId: string, updates: Record<string, unknown>): Promise<MuralWidget> {
+    return this.updateWidgetOfKind(muralId, 'arrow', widgetId, updates);
+  }
+
+  async updateTextBox(muralId: string, widgetId: string, updates: Record<string, unknown>): Promise<MuralWidget> {
+    return this.updateWidgetOfKind(muralId, 'text-box', widgetId, updates);
+  }
+
+  async updateTitle(muralId: string, widgetId: string, updates: Record<string, unknown>): Promise<MuralWidget> {
+    return this.updateWidgetOfKind(muralId, 'title', widgetId, updates);
+  }
+
+  async updateArea(muralId: string, widgetId: string, updates: Record<string, unknown>): Promise<MuralWidget> {
+    return this.updateWidgetOfKind(muralId, 'area', widgetId, updates);
   }
 
 }

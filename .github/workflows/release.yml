@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          # OIDC Trusted Publishing requires Node >= 22.14 (the project's
+          # .nvmrc is 20 and is used by the CI workflow). No registry-url:
+          # with Trusted Publishing the OIDC exchange happens inside
+          # @semantic-release/npm, so no NPM_TOKEN/_authToken is needed.
+          node-version: '22'
+          cache: pnpm
+
+      # Trusted Publishing (token-free, OIDC only) needs npm >= 11.5.1.
+      # @semantic-release/npm shells out to the npm CLI, so the global npm
+      # version is what matters here.
+      - run: npm install -g npm@^11.5.1
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+
+      - run: pnpm build
+
+      - run: pnpm exec semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

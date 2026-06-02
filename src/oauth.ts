@@ -298,7 +298,13 @@ export class MuralOAuth {
     const command = platform === 'darwin' ? 'open' : platform === 'win32' ? 'start' : 'xdg-open';
     
     try {
-      spawn(command, [authUrl], { stdio: 'ignore', detached: true }).unref();
+      const browserProcess = spawn(command, [authUrl], { stdio: 'ignore', detached: true });
+      // spawn() reports failures (e.g. xdg-open missing on WSL/Linux) via an async
+      // 'error' event, not a thrown exception — handle it so the server doesn't crash.
+      browserProcess.on('error', () => {
+        // Browser couldn't be opened automatically; the user opens the URL manually.
+      });
+      browserProcess.unref();
     } catch (error) {
       // Browser opening failed, user will need to open manually
     }
