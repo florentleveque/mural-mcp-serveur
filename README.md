@@ -289,6 +289,10 @@ npx @modelcontextprotocol/inspector node build/index.js
 4. Add tests if applicable
 5. Submit a pull request
 
+## Inspired by
+
+This project is inspired by [cogell/mural-mcp](https://github.com/cogell/mural-mcp).
+
 ## License
 
 MIT License - see LICENSE file for details
