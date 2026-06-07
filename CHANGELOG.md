@@ -1,3 +1,13 @@
+## [1.1.0](https://github.com/florentleveque/mural-mcp-serveur/compare/v1.0.0...v1.1.0) (2026-06-07)
+
+### Features
+
+* **tests:** set up vitest unit testing infrastructure ([e276639](https://github.com/florentleveque/mural-mcp-serveur/commit/e2766398841ca0f3694cb316974b91f5444f92da))
+
+### Bug Fixes
+
+* **client:** do not retry 4xx client errors ([35a73a6](https://github.com/florentleveque/mural-mcp-serveur/commit/35a73a68772126f7eea3186f3afc1e205f85ab16))
+
 ## 1.0.0 (2026-06-07)
 
 ### Features
