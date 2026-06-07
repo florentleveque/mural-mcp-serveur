@@ -7,7 +7,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 
-import { MuralClient } from './mural-client.js';
+import { MuralApiError, MuralClient } from './mural-client.js';
 
 const REQUIRED_ENV_VARS = ['MURAL_CLIENT_ID', 'MURAL_CLIENT_SECRET'] as const;
 
@@ -1681,6 +1681,12 @@ async function main() {
                 error: true,
                 message: errorMessage,
                 tool: name,
+                // Expose the typed API error details so MCP callers can act
+                // on the HTTP status and Mural machine-readable error code.
+                ...(error instanceof MuralApiError && {
+                  status: error.status,
+                  ...(error.errorCode && { errorCode: error.errorCode }),
+                }),
               },
               null,
               2,
