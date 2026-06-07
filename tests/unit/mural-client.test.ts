@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { MuralClient } from '../../src/mural-client.js';
+import { MuralApiError, MuralClient } from '../../src/mural-client.js';
 import { mockFetchResponse, mockOAuthTokens } from './helpers.js';
 
 // MuralClient instantiates MuralOAuth and MuralRateLimiter internally,
@@ -235,6 +235,47 @@ describe('MuralClient', () => {
       const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
       expect(url).toBe('https://app.mural.co/api/public/v1/murals/m1/widgets/w1');
       expect(options.method).toBe('DELETE');
+    });
+  });
+
+  describe('MuralApiError', () => {
+    it('exposes status, errorCode and apiMessage from the API error body', async () => {
+      fetchMock.mockResolvedValue(mockFetchResponse(404, { code: 'MURAL_NOT_FOUND', message: 'Mural not found' }));
+
+      const error = await createClient()
+        .getWorkspace('ws1')
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(MuralApiError);
+      const apiError = error as MuralApiError;
+      expect(apiError.status).toBe(404);
+      expect(apiError.errorCode).toBe('MURAL_NOT_FOUND');
+      expect(apiError.apiMessage).toBe('Mural not found');
+      expect(apiError.message).toContain('HTTP 404');
+    });
+
+    it('marks 4xx errors as nonRetryable and 5xx as retryable', () => {
+      expect(new MuralApiError(403, 'Forbidden').nonRetryable).toBe(true);
+      expect(new MuralApiError(429, 'Too Many Requests').nonRetryable).toBe(true); // only thrown once retries are exhausted
+      expect(new MuralApiError(500, 'Server Error').nonRetryable).toBe(false);
+    });
+
+    it('keeps a message without API details when the error body is not JSON', async () => {
+      fetchMock.mockResolvedValue(new Response('plain text', { status: 400, statusText: 'Bad Request' }));
+
+      const error = await createClient()
+        .getWorkspace('ws1')
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(MuralApiError);
+      expect((error as MuralApiError).errorCode).toBeUndefined();
+      expect((error as MuralApiError).message).toBe('Mural API request failed: HTTP 400: Bad Request');
+    });
+
+    it('maps an API 403 INVALID_SCOPE to a permission-denied message in scope-aware methods', async () => {
+      fetchMock.mockResolvedValue(mockFetchResponse(403, { code: 'INVALID_SCOPE', message: 'Invalid scope' }));
+
+      await expect(createClient().getMuralWidgets('m1')).rejects.toThrow(/^Permission denied/);
     });
   });
 });
