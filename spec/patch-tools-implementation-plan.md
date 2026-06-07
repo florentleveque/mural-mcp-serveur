@@ -7,6 +7,7 @@ This specification outlines the implementation plan for adding comprehensive UPD
 ## Current State Analysis
 
 ### Existing Architecture Strengths
+
 - **Comprehensive Types**: All widget types and data structures already defined in `src/types.ts`
 - **Robust MuralClient**: Full OAuth, rate limiting, error handling, and scope validation
 - **Complete CREATE Tools**: All widget creation tools implemented (sticky notes, text boxes, shapes, etc.)
@@ -15,7 +16,9 @@ This specification outlines the implementation plan for adding comprehensive UPD
 - **Infrastructure**: MCP server architecture, request handlers, and validation patterns established
 
 ### Missing Components
+
 The server lacks UPDATE (PATCH) operations for:
+
 1. **Widget Updates**: All 9 widget types (sticky notes, text boxes, titles, shapes, images, files, areas, arrows, comments)
 2. **Content Updates**: Tags, mural visitor settings, timer controls
 3. **Permission Updates**: Room and mural member permissions
@@ -236,7 +239,7 @@ async updateRoom(roomId: string, updates: { name?: string; description?: string 
   }
 }
 
-// Mural update method  
+// Mural update method
 async updateMural(muralId: string, updates: { title?: string; description?: string }): Promise<MuralBoard> {
   try {
     const scopeCheck = await this.checkScope('murals:write');
@@ -247,7 +250,7 @@ async updateMural(muralId: string, updates: { title?: string; description?: stri
     const response = await this.makeAuthenticatedRequest<any>(
       `/murals/${encodeURIComponent(muralId)}`,
       {
-        method: 'PATCH', 
+        method: 'PATCH',
         body: JSON.stringify(updates)
       }
     );
@@ -278,7 +281,7 @@ Add to the tools array in `src/index.ts`:
         description: 'The unique identifier of the mural'
       },
       widgetId: {
-        type: 'string', 
+        type: 'string',
         description: 'The unique identifier of the sticky note widget to update'
       },
       updates: {
@@ -546,10 +549,10 @@ case 'update-sticky-note': {
       }).optional()
     })
   });
-  
+
   const { muralId, widgetId, updates } = schema.parse(args);
   const updatedWidget = await muralClient.updateStickyNote(muralId, widgetId, updates);
-  
+
   return {
     content: [
       {
@@ -579,10 +582,10 @@ case 'update-mural-tag': {
       color: z.string().optional()
     })
   });
-  
+
   const { muralId, tagId, updates } = schema.parse(args);
   const updatedTag = await muralClient.updateMuralTag(muralId, tagId, updates);
-  
+
   return {
     content: [
       {
@@ -606,10 +609,10 @@ case 'update-room-member-permissions': {
       permissions: z.array(z.enum(['read', 'write', 'admin'])).min(1)
     })).min(1)
   });
-  
+
   const { roomId, members } = schema.parse(args);
   await muralClient.updateRoomMemberPermissions(roomId, { members });
-  
+
   return {
     content: [
       {
@@ -665,6 +668,7 @@ case 'update-room-member-permissions': {
 ## OAuth Scope Requirements
 
 All PATCH operations require appropriate write scopes:
+
 - **Widget Updates**: `murals:write`
 - **Content Updates**: `murals:write`
 - **Room Updates**: `rooms:write`
@@ -673,18 +677,21 @@ All PATCH operations require appropriate write scopes:
 ## Testing Strategy
 
 ### Unit Testing
+
 - Schema validation for all input types
 - Error handling for invalid inputs
 - Scope validation for each operation
 - API client method testing
 
 ### Integration Testing
+
 - End-to-end tool execution
 - Error propagation from API to tool response
 - Rate limiting behavior
 - Token refresh during long operations
 
 ### Manual Testing
+
 - Test with different OAuth scopes
 - Test with various widget types and properties
 - Test error conditions (invalid IDs, insufficient permissions)
@@ -695,7 +702,7 @@ All PATCH operations require appropriate write scopes:
 1. **Completeness**: All 15+ PATCH operations implemented and functional
 2. **Consistency**: All tools follow established patterns and conventions
 3. **Validation**: Robust input validation prevents API errors
-4. **Error Handling**: Clear, actionable error messages for all failure modes  
+4. **Error Handling**: Clear, actionable error messages for all failure modes
 5. **Performance**: Operations complete within reasonable time limits
 6. **Documentation**: All tools properly documented with clear examples
 
@@ -717,5 +724,5 @@ All PATCH operations require appropriate write scopes:
 
 ---
 
-*Implementation Target: Complete PATCH tools implementation*  
-*Priority: High - Completes CRUD operations for comprehensive mural management*
+_Implementation Target: Complete PATCH tools implementation_  
+_Priority: High - Completes CRUD operations for comprehensive mural management_

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { MuralClient } from '../../src/mural-client.js';
 import { mockFetchResponse, mockOAuthTokens } from './helpers.js';
 
@@ -98,9 +99,7 @@ describe('MuralClient', () => {
 
     it('retries on 500 with exponential backoff then succeeds', async () => {
       vi.useFakeTimers();
-      fetchMock
-        .mockResolvedValueOnce(mockFetchResponse(500, { message: 'oops' }))
-        .mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
+      fetchMock.mockResolvedValueOnce(mockFetchResponse(500, { message: 'oops' })).mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
 
       const promise = createClient().getWorkspace('ws1');
       // First retry waits 2^0 * 1000 = 1000ms
@@ -125,9 +124,7 @@ describe('MuralClient', () => {
 
     it('honours the Retry-After header on 429 then retries', async () => {
       vi.useFakeTimers();
-      fetchMock
-        .mockResolvedValueOnce(mockFetchResponse(429, null, { 'Retry-After': '2' }))
-        .mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
+      fetchMock.mockResolvedValueOnce(mockFetchResponse(429, null, { 'Retry-After': '2' })).mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
 
       const promise = createClient().getWorkspace('ws1');
       await vi.advanceTimersByTimeAsync(2000);
@@ -138,9 +135,7 @@ describe('MuralClient', () => {
 
     it('waits and retries when the local rate limiter asks for a short wait', async () => {
       vi.useFakeTimers();
-      mocks.canMakeRequest
-        .mockResolvedValueOnce({ allowed: false, waitTimeMs: 1000, reason: 'User rate limit' })
-        .mockResolvedValueOnce({ allowed: true });
+      mocks.canMakeRequest.mockResolvedValueOnce({ allowed: false, waitTimeMs: 1000, reason: 'User rate limit' }).mockResolvedValueOnce({ allowed: true });
       fetchMock.mockResolvedValue(mockFetchResponse(200, { id: 'ws1' }));
 
       const promise = createClient().getWorkspace('ws1');
@@ -206,7 +201,7 @@ describe('MuralClient', () => {
     it('rejects when the OAuth token is missing the required scope', async () => {
       mocks.getStoredTokens.mockResolvedValue(mockOAuthTokens({ scope: 'workspaces:read' }));
 
-      await expect(createClient().getMuralWidgets('m1')).rejects.toThrow("missing required scope: murals:read");
+      await expect(createClient().getMuralWidgets('m1')).rejects.toThrow('missing required scope: murals:read');
       expect(fetchMock).not.toHaveBeenCalled();
     });
   });

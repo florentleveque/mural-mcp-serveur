@@ -1,5 +1,6 @@
-import fs from 'fs/promises';
+import fs from 'node:fs/promises';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { MuralRateLimiter } from '../../src/rate-limiter.js';
 
 // Rate limit state persistence goes through fs/promises

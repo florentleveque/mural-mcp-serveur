@@ -1,7 +1,8 @@
-import fs from 'fs/promises';
-import path from 'path';
-import os from 'os';
-import type { RateLimitBucket, RateLimitState, RateLimitStatus, RateLimitConfig } from './types.js';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+
+import type { RateLimitBucket, RateLimitConfig, RateLimitState, RateLimitStatus } from './types.js';
 
 const RATE_LIMIT_FILE_PATH = path.join(os.homedir(), '.mural-mcp-rate-limit.json');
 
@@ -14,13 +15,13 @@ export class MuralRateLimiter {
       userRequestsPerSecond: config?.userRequestsPerSecond ?? 25,
       appRequestsPerMinute: config?.appRequestsPerMinute ?? 10000,
       persistState: config?.persistState ?? true,
-      ...config
+      ...config,
     };
 
     this.state = {
       userBucket: this.createBucket(this.config.userRequestsPerSecond, 1000), // 1 second window
-      appBucket: this.createBucket(this.config.appRequestsPerMinute, 60000),  // 60 second window
-      lastUpdated: Date.now()
+      appBucket: this.createBucket(this.config.appRequestsPerMinute, 60000), // 60 second window
+      lastUpdated: Date.now(),
     };
   }
 
@@ -30,7 +31,7 @@ export class MuralRateLimiter {
       tokens: capacity,
       refillRate: capacity / (refillIntervalMs / 1000), // tokens per second
       lastRefill: Date.now(),
-      refillIntervalMs
+      refillIntervalMs,
     };
   }
 
@@ -40,7 +41,7 @@ export class MuralRateLimiter {
     try {
       const data = await fs.readFile(RATE_LIMIT_FILE_PATH, 'utf-8');
       const savedState = JSON.parse(data) as RateLimitState;
-      
+
       // Only use saved state if it's recent (within 5 minutes)
       if (Date.now() - savedState.lastUpdated < 300000) {
         this.state = savedState;
@@ -63,7 +64,7 @@ export class MuralRateLimiter {
   private refillBucket(bucket: RateLimitBucket): void {
     const now = Date.now();
     const timePassed = now - bucket.lastRefill;
-    
+
     if (timePassed > 0) {
       const tokensToAdd = Math.floor((timePassed / 1000) * bucket.refillRate);
       bucket.tokens = Math.min(bucket.capacity, bucket.tokens + tokensToAdd);
@@ -80,18 +81,18 @@ export class MuralRateLimiter {
     if (!this.canConsume(bucket, tokens)) {
       return false;
     }
-    
+
     bucket.tokens -= tokens;
     return true;
   }
 
   private getWaitTime(bucket: RateLimitBucket, tokens: number = 1): number {
     this.refillBucket(bucket);
-    
+
     if (bucket.tokens >= tokens) {
       return 0;
     }
-    
+
     const tokensNeeded = tokens - bucket.tokens;
     return Math.ceil((tokensNeeded / bucket.refillRate) * 1000);
   }
@@ -105,7 +106,7 @@ export class MuralRateLimiter {
       return {
         allowed: false,
         waitTimeMs: waitTime,
-        reason: `User rate limit exceeded (${this.config.userRequestsPerSecond} requests/second)`
+        reason: `User rate limit exceeded (${this.config.userRequestsPerSecond} requests/second)`,
       };
     }
 
@@ -115,7 +116,7 @@ export class MuralRateLimiter {
       return {
         allowed: false,
         waitTimeMs: waitTime,
-        reason: `Application rate limit exceeded (${this.config.appRequestsPerMinute} requests/minute)`
+        reason: `Application rate limit exceeded (${this.config.appRequestsPerMinute} requests/minute)`,
       };
     }
 
@@ -148,21 +149,21 @@ export class MuralRateLimiter {
         tokensRemaining: this.state.userBucket.tokens,
         capacity: this.state.userBucket.capacity,
         refillRate: this.state.userBucket.refillRate,
-        nextRefillIn: Math.max(0, this.state.userBucket.refillIntervalMs - (Date.now() - this.state.userBucket.lastRefill))
+        nextRefillIn: Math.max(0, this.state.userBucket.refillIntervalMs - (Date.now() - this.state.userBucket.lastRefill)),
       },
       app: {
         tokensRemaining: this.state.appBucket.tokens,
         capacity: this.state.appBucket.capacity,
         refillRate: this.state.appBucket.refillRate,
-        nextRefillIn: Math.max(0, this.state.appBucket.refillIntervalMs - (Date.now() - this.state.appBucket.lastRefill))
+        nextRefillIn: Math.max(0, this.state.appBucket.refillIntervalMs - (Date.now() - this.state.appBucket.lastRefill)),
       },
-      lastUpdated: this.state.lastUpdated
+      lastUpdated: this.state.lastUpdated,
     };
   }
 
   async waitForAvailability(maxWaitMs: number = 30000): Promise<boolean> {
     const checkResult = await this.canMakeRequest();
-    
+
     if (checkResult.allowed) {
       return true;
     }
@@ -171,7 +172,7 @@ export class MuralRateLimiter {
       return false;
     }
 
-    await new Promise(resolve => setTimeout(resolve, checkResult.waitTimeMs!));
+    await new Promise(resolve => setTimeout(resolve, checkResult.waitTimeMs));
     return true;
   }
 
@@ -179,7 +180,7 @@ export class MuralRateLimiter {
     this.state = {
       userBucket: this.createBucket(this.config.userRequestsPerSecond, 1000),
       appBucket: this.createBucket(this.config.appRequestsPerMinute, 60000),
-      lastUpdated: Date.now()
+      lastUpdated: Date.now(),
     };
 
     if (this.config.persistState) {

@@ -1,6 +1,7 @@
-import fs from 'fs/promises';
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
+import fs from 'node:fs/promises';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { MuralOAuth } from '../../src/oauth.js';
 import { mockFetchResponse, mockOAuthTokens } from './helpers.js';
 
@@ -81,9 +82,7 @@ describe('MuralOAuth', () => {
 
   describe('exchangeCodeForTokens', () => {
     it('returns tokens with a computed expires_at on success', async () => {
-      fetchMock.mockResolvedValue(
-        mockFetchResponse(200, { access_token: 'at', refresh_token: 'rt', token_type: 'Bearer', expires_in: 3600 }),
-      );
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: 'at', refresh_token: 'rt', token_type: 'Bearer', expires_in: 3600 }));
       const before = Date.now();
 
       const tokens = await asAny(createOAuth('secret')).exchangeCodeForTokens('auth-code', 'verifier');
@@ -137,9 +136,7 @@ describe('MuralOAuth', () => {
     it('throws on invalid_grant', async () => {
       fetchMock.mockResolvedValue(mockFetchResponse(400, { error: 'invalid_grant', error_description: 'Refresh token expired' }));
 
-      await expect(asAny(createOAuth()).refreshAccessToken('old-rt')).rejects.toThrow(
-        'OAuth token refresh failed: invalid_grant - Refresh token expired',
-      );
+      await expect(asAny(createOAuth()).refreshAccessToken('old-rt')).rejects.toThrow('OAuth token refresh failed: invalid_grant - Refresh token expired');
     });
   });
 

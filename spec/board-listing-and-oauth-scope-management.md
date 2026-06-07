@@ -113,31 +113,35 @@ export interface ScopeCheckResult {
 #### OAuth Configuration Updates (`src/oauth.ts`)
 
 **Complete OAuth Scopes Coverage**:
+
 ```typescript
 scopes = [
-  'workspaces:read',     // Read workspace information
-  'rooms:read',          // Read room information
-  'rooms:write',         // Create, update, and delete rooms
-  'murals:read',         // Read mural information
-  'murals:write',        // Create, update, and delete murals
-  'templates:read',      // Read template information
-  'templates:write',     // Create and delete templates
-  'identity:read'        // Read user profile information
-]
+  'workspaces:read', // Read workspace information
+  'rooms:read', // Read room information
+  'rooms:write', // Create, update, and delete rooms
+  'murals:read', // Read mural information
+  'murals:write', // Create, update, and delete murals
+  'templates:read', // Read template information
+  'templates:write', // Create and delete templates
+  'identity:read', // Read user profile information
+];
 ```
 
 **New OAuth Method**:
+
 - `getStoredTokens(): Promise<OAuthTokens | null>` - Access stored authentication tokens for scope extraction
 
 #### API Endpoint Strategy
 
 **RESTful Endpoints Used**:
+
 - `/workspaces/{workspaceId}/murals` - List boards in workspace
-- `/rooms/{roomId}/murals` - List boards in room  
+- `/rooms/{roomId}/murals` - List boards in room
 - `/murals/{muralId}` - Get individual board details
 - `/users/me` - Get current user information
 
 **Legacy Endpoints Rejected**:
+
 - `/getworkspacemurals` - Returns 404 (deprecated/non-existent)
 - `/getroommurals` - Returns 404 (deprecated/non-existent)
 
@@ -146,19 +150,22 @@ scopes = [
 #### Scope-Aware Error Messages
 
 **Before**:
+
 ```
 HTTP 403: Forbidden - Logged in user does not have the right scope(s) to access this resource
 ```
 
 **After**:
+
 ```
-Permission denied: User missing required scope: murals:read. Available scopes: workspaces:read. 
+Permission denied: User missing required scope: murals:read. Available scopes: workspaces:read.
 Please ensure your Mural OAuth app has 'murals:read' scope and re-authenticate.
 ```
 
 #### Proactive Scope Checking
 
 All board operation methods now:
+
 1. Check for required OAuth scope before making API calls
 2. Provide specific error messages when scopes are missing
 3. Include actionable guidance for resolving scope issues
@@ -167,6 +174,7 @@ All board operation methods now:
 #### Scope Analysis Tool
 
 The `check-user-scopes` tool provides:
+
 - Current user information (when `identity:read` scope available)
 - Complete list of available OAuth scopes
 - Per-scope status with ✓/✗ indicators
@@ -178,21 +186,25 @@ The `check-user-scopes` tool provides:
 ### Test Commands Used
 
 1. **Tool Listing**: Verify all tools are properly registered
+
    ```bash
    echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}' | node build/index.js
    ```
 
 2. **Workspace Listing**: Validate existing functionality
+
    ```bash
    echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "list-workspaces", "arguments": {}}}' | node build/index.js
    ```
 
 3. **Board Listing**: Test new functionality with scope checking
+
    ```bash
    echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "list-workspace-boards", "arguments": {"workspaceId": "next4904"}}}' | node build/index.js
    ```
 
 4. **Scope Checking**: Validate OAuth scope analysis
+
    ```bash
    echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "check-user-scopes", "arguments": {}}}' | node build/index.js
    ```
@@ -213,15 +225,18 @@ The `check-user-scopes` tool provides:
 ## Architecture Decisions
 
 ### Endpoint Strategy
+
 - **Chose RESTful over Legacy**: Modern `/workspaces/{id}/murals` format over deprecated `/getworkspacemurals`
 - **Removed Fallback Logic**: Legacy endpoints return 404, so fallback was removed for cleaner code
 
 ### Scope Management
+
 - **Proactive Checking**: Check scopes before API calls to provide better error messages
 - **Token-Based Scope Detection**: Extract scopes from stored OAuth tokens rather than additional API calls
 - **Comprehensive Coverage**: Include all 8 available Mural API scopes for future functionality
 
 ### Error Handling
+
 - **Layered Approach**: Check scopes first, then handle API errors with scope context
 - **User-Centric Messages**: Focus on actionable steps rather than technical details
 - **Preserve Existing Logic**: Maintain existing retry and rate limiting functionality
@@ -247,17 +262,20 @@ The `check-user-scopes` tool provides:
 ## Future Considerations
 
 ### Potential Enhancements
+
 1. **Template Operations**: Implement tools for template listing and creation using `templates:read/write` scopes
 2. **Room Management**: Add room creation and modification tools using `rooms:write` scope
 3. **Board Creation**: Implement board/mural creation tools using `murals:write` scope
 4. **Widget Operations**: Add widget manipulation within boards (requires additional API research)
 
 ### Scope Expansion
+
 - Monitor Mural API updates for new OAuth scopes
 - Consider workspace creation if `workspaces:write` becomes available
 - Evaluate need for additional permission granularity
 
 ### Error Handling
+
 - Add retry logic specific to scope-related errors
 - Implement automatic scope detection and re-authentication flow
 - Consider caching scope information to reduce API calls

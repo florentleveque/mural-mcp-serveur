@@ -7,6 +7,7 @@ This specification outlines the implementation plan for extending the Mural MCP 
 ## Current State Analysis
 
 ### Existing Architecture
+
 - **MCP Server** (`src/index.ts`): Handles tool registration and request routing
 - **MuralClient** (`src/mural-client.ts`): Manages API communication with OAuth, rate limiting, and error handling
 - **OAuth Handler** (`src/oauth.ts`): Implements OAuth 2.0 with PKCE
@@ -14,6 +15,7 @@ This specification outlines the implementation plan for extending the Mural MCP 
 - **Types** (`src/types.ts`): TypeScript definitions for existing data structures
 
 ### Current Tools
+
 - `list-workspaces` - List user workspaces
 - `get-workspace` - Get workspace details
 - `list-workspace-boards` - List boards in workspace
@@ -259,6 +261,7 @@ async updateMuralVisitorSettings(muralId: string, settings: MuralVisitorSettings
 #### 2.3 Implementation Details
 
 Each method will:
+
 1. Validate required OAuth scopes (`murals:read` or `murals:write`)
 2. Use existing rate limiting and retry mechanisms
 3. Handle API-specific error responses
@@ -287,7 +290,7 @@ Register new MCP tools in `src/index.ts`:
 }
 
 {
-  name: 'get-mural-widget', 
+  name: 'get-mural-widget',
   description: 'Get details of a specific widget',
   inputSchema: {
     type: 'object',
@@ -305,7 +308,7 @@ Register new MCP tools in `src/index.ts`:
   name: 'get-mural-chat',
   description: 'Get chat messages from a mural',
   inputSchema: {
-    type: 'object', 
+    type: 'object',
     properties: {
       muralId: { type: 'string', description: 'The mural ID' }
     },
@@ -322,7 +325,7 @@ Register new MCP tools in `src/index.ts`:
     properties: {
       muralId: { type: 'string', description: 'The mural ID' }
     },
-    required: ['muralId'], 
+    required: ['muralId'],
     additionalProperties: false
   }
 }
@@ -377,6 +380,7 @@ Register new MCP tools in `src/index.ts`:
 #### 3.3 Request Handlers
 
 Implement request handlers with:
+
 - Zod schema validation
 - Scope checking with helpful error messages
 - Consistent response formatting
@@ -385,16 +389,19 @@ Implement request handlers with:
 ### Phase 4: Testing and Validation
 
 #### 4.1 Scope Validation
+
 - Verify all tools properly check required OAuth scopes
 - Provide clear error messages for missing scopes
 - Test with limited scope configurations
 
 #### 4.2 Rate Limiting
+
 - Ensure content operations respect existing rate limits
 - Test batch operations (especially 1000 sticky notes)
 - Verify proper retry behavior
 
 #### 4.3 Error Handling
+
 - Test API error responses
 - Verify proper error message formatting
 - Test network failure scenarios
@@ -402,11 +409,13 @@ Implement request handlers with:
 ## OAuth Scope Requirements
 
 ### Required Scopes
+
 - `murals:read` - Required for all content reading operations
 - `murals:write` - Required for all content creation/modification operations
 - `identity:read` - Optional, for user information in created content
 
 ### Scope Validation
+
 All content operations will validate required scopes before execution and provide helpful error messages when scopes are missing.
 
 ## Security Considerations
@@ -445,7 +454,7 @@ All content operations will validate required scopes before execution and provid
 ## Future Enhancements
 
 1. **Content Updates**: PATCH operations for modifying existing widgets
-2. **Advanced Search**: Filtering and searching widgets by type/properties  
+2. **Advanced Search**: Filtering and searching widgets by type/properties
 3. **Bulk Operations**: More efficient bulk operations for large content sets
 4. **Real-time Events**: WebSocket support for real-time content updates
 5. **Content Templates**: Predefined widget templates for common patterns

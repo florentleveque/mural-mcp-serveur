@@ -3,17 +3,20 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Package Manager
+
 Use `pnpm` for all package management operations.
 
 ## Common Development Commands
 
 ### Building and Development
+
 - `pnpm run build` - Compile TypeScript to JavaScript in `build/` directory
 - `pnpm run dev` - Watch mode compilation with TypeScript
 - `pnpm start` - Run the compiled MCP server
 - `pnpm run prepublishOnly` - Pre-publish build step
 
 ### Testing and Debugging
+
 - `pnpm test` - Run unit tests (Vitest, mocked HTTP/fs — no credentials needed)
 - `pnpm test:watch` - Run unit tests in watch mode
 - `pnpm test:coverage` - Run unit tests with coverage report
@@ -51,9 +54,11 @@ This is a Model Context Protocol (MCP) server that provides integration with the
 ### Environment Variables
 
 Required:
+
 - `MURAL_CLIENT_ID` - OAuth client ID from Mural Developer Portal
 
 Optional:
+
 - `MURAL_CLIENT_SECRET` - OAuth client secret (recommended)
 - `MURAL_REDIRECT_URI` - Defaults to `http://localhost:3000/callback`
 

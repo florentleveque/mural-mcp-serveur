@@ -265,16 +265,7 @@ export interface ArrowWidget extends MuralWidget {
 }
 
 // Union type for all widgets
-export type AnyMuralWidget =
-  | StickyNoteWidget
-  | TextBoxWidget
-  | TitleWidget
-  | ShapeWidget
-  | ImageWidget
-  | FileWidget
-  | TableWidget
-  | AreaWidget
-  | ArrowWidget;
+export type AnyMuralWidget = StickyNoteWidget | TextBoxWidget | TitleWidget | ShapeWidget | ImageWidget | FileWidget | TableWidget | AreaWidget | ArrowWidget;
 
 // Widget creation requests and responses
 export interface CreateWidgetRequest {
@@ -300,4 +291,3 @@ export interface CreateStickyNoteRequest {
 export interface UpdateStickyNoteRequest extends Partial<CreateStickyNoteRequest> {
   id?: string; // Widget ID for updates
 }
-

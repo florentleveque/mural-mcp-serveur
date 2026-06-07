@@ -20,6 +20,7 @@ A Model Context Protocol (MCP) server that provides integration with the Mural v
 ## Tools Available
 
 **Authentication & utilities**
+
 - `test-connection`: Test the connection to Mural API and verify authentication
 - `clear-auth`: Clear stored authentication tokens (forces re-authentication)
 - `check-user-scopes`: Show the current token's OAuth scopes
@@ -27,19 +28,23 @@ A Model Context Protocol (MCP) server that provides integration with the Mural v
 - `debug-api-response`: Raw workspaces API response (troubleshooting)
 
 **Workspaces**
+
 - `list-workspaces`: List all workspaces the authenticated user has access to
 - `get-workspace`: Get detailed information about a specific workspace
 
 **Rooms**
+
 - `list-workspace-rooms`: List a workspace's rooms (option `openOnly`)
 - `list-room-boards`: List the murals within a room
 - `create-room`: Create a room (`open`/`private`)
 
 **Templates**
+
 - `list-workspace-templates`: List a workspace's templates (default + custom), or search by name
 - `create-mural-from-template`: Create a mural in a room from a template
 
 **Murals**
+
 - `list-workspace-boards`: List a workspace's murals
 - `get-board`: Get details of a specific mural
 - `create-mural`: Create a blank mural in a room
@@ -49,6 +54,7 @@ A Model Context Protocol (MCP) server that provides integration with the Mural v
 - `export-mural`: Export a mural in a given format
 
 **Widgets**
+
 - `get-mural-widgets`: Get all widgets of a mural (paginated)
 - `get-mural-widget`: Get a specific widget by id
 - `create-sticky-notes`: Create sticky notes (up to 1000 per request)
@@ -78,6 +84,7 @@ pnpm add -g @florentleveque/mural-mcp-serveur
 ### Option 2: Install from source
 
 1. Clone and install dependencies:
+
 ```bash
 git clone https://github.com/florentleveque/mural-mcp-serveur.git
 cd mural-mcp-serveur
@@ -85,6 +92,7 @@ pnpm install
 ```
 
 2. Build the project:
+
 ```bash
 pnpm run build
 ```
@@ -92,6 +100,7 @@ pnpm run build
 ## Setup
 
 1. Set up environment variables:
+
 ```bash
 cp .env.example .env
 # Edit .env with your Mural OAuth credentials
@@ -300,6 +309,7 @@ MIT License - see LICENSE file for details
 ## Support
 
 For issues and questions:
+
 - Check the troubleshooting section above
 - Review Mural API documentation
 - Create an issue in the repository
