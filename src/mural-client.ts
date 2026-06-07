@@ -113,8 +113,7 @@ export class MuralClient {
 
         // Handle rate limit responses from the API
         if (response.status === 429) {
-          const retryAfter = response.headers.get('Retry-After');
-          const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, attempt) * 1000;
+          const waitTime = this.resolve429WaitMs(response.headers, attempt);
 
           if (attempt < maxRetries && waitTime <= 30000) {
             console.warn(`API rate limit hit (HTTP 429). Retrying after ${waitTime}ms... (attempt ${attempt + 1}/${maxRetries + 1})`);
@@ -184,6 +183,29 @@ export class MuralClient {
     }
 
     throw new Error('Max retries exceeded');
+  }
+
+  /**
+   * Compute how long to wait after a 429 response.
+   * Mural does not send Retry-After; it sends x-ratelimit[-app]-reset (unix
+   * epoch seconds) alongside x-ratelimit[-app]-remaining. Prefer the exact
+   * reset of whichever bucket is exhausted, fall back to any reset header,
+   * then to the standard Retry-After, and finally to exponential backoff.
+   */
+  private resolve429WaitMs(headers: Headers, attempt: number): number {
+    const resetHeader =
+      headers.get('x-ratelimit-remaining') === '0'
+        ? headers.get('x-ratelimit-reset')
+        : headers.get('x-ratelimit-app-remaining') === '0'
+          ? headers.get('x-ratelimit-app-reset')
+          : (headers.get('x-ratelimit-reset') ?? headers.get('x-ratelimit-app-reset'));
+
+    if (resetHeader) {
+      return Math.max(0, parseInt(resetHeader) * 1000 - Date.now());
+    }
+
+    const retryAfter = headers.get('Retry-After');
+    return retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, attempt) * 1000;
   }
 
   async getWorkspaces(limit?: number, offset?: number): Promise<MuralWorkspace[]> {

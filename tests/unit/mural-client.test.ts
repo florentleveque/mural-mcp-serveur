@@ -122,6 +122,63 @@ describe('MuralClient', () => {
       expect(fetchMock).toHaveBeenCalledTimes(4); // initial + 3 retries
     });
 
+    it('derives the 429 wait time from x-ratelimit-reset when the user bucket is exhausted', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(1_000_000_000_000); // round timestamp so epoch math is exact
+      const resetEpoch = Date.now() / 1000 + 2; // 2s ahead, in seconds
+      fetchMock
+        .mockResolvedValueOnce(mockFetchResponse(429, null, { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(resetEpoch) }))
+        .mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
+
+      const promise = createClient().getWorkspace('ws1');
+      await vi.advanceTimersByTimeAsync(2000);
+
+      await expect(promise).resolves.toEqual({ id: 'ws1' });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('derives the 429 wait time from x-ratelimit-app-reset when the app bucket is exhausted', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(1_000_000_000_000);
+      const resetEpoch = Date.now() / 1000 + 1;
+      fetchMock
+        .mockResolvedValueOnce(
+          mockFetchResponse(429, null, {
+            'x-ratelimit-remaining': '5',
+            'x-ratelimit-app-remaining': '0',
+            'x-ratelimit-app-reset': String(resetEpoch),
+          }),
+        )
+        .mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
+
+      const promise = createClient().getWorkspace('ws1');
+      await vi.advanceTimersByTimeAsync(1000);
+
+      await expect(promise).resolves.toEqual({ id: 'ws1' });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('throws immediately on 429 when the reset is beyond the 30s cap', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(1_000_000_000_000);
+      const resetEpoch = Date.now() / 1000 + 60; // 60s ahead
+      fetchMock.mockResolvedValue(mockFetchResponse(429, null, { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(resetEpoch) }));
+
+      await expect(createClient().getWorkspace('ws1')).rejects.toThrow('API rate limit exceeded');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('falls back to exponential backoff on 429 without any rate-limit header', async () => {
+      vi.useFakeTimers();
+      fetchMock.mockResolvedValueOnce(mockFetchResponse(429)).mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
+
+      const promise = createClient().getWorkspace('ws1');
+      await vi.advanceTimersByTimeAsync(1000); // 2^0 * 1000
+
+      await expect(promise).resolves.toEqual({ id: 'ws1' });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
     it('honours the Retry-After header on 429 then retries', async () => {
       vi.useFakeTimers();
       fetchMock.mockResolvedValueOnce(mockFetchResponse(429, null, { 'Retry-After': '2' })).mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
