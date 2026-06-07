@@ -7,6 +7,7 @@ This document outlines the Minimum Viable Product (MVP) architecture for a Model
 ## Research Findings
 
 ### Model Context Protocol (MCP)
+
 - **Purpose**: Open protocol that standardizes how applications provide context to LLMs
 - **Implementation**: Uses `@modelcontextprotocol/sdk` package for JavaScript/TypeScript
 - **Capabilities**: Supports tools, resources, prompts, and logging
@@ -14,6 +15,7 @@ This document outlines the Minimum Viable Product (MVP) architecture for a Model
 - **Architecture**: Server implements request handlers for different capabilities
 
 ### Mural API
+
 - **Authentication**: OAuth 2.0 with Authorization Code Grant and PKCE support
 - **Token Lifecycle**: 15-minute access token expiry with refresh token capability
 - **Key Endpoints**:
@@ -35,29 +37,34 @@ This document outlines the Minimum Viable Product (MVP) architecture for a Model
 ### System Components
 
 #### 1. MCP Server (`src/index.ts`)
+
 - **Transport**: Standard I/O (stdio) for local development and CLI usage
 - **Capabilities**: Tools capability for workspace operations
 - **Request Handling**: Implements `ListToolsRequestSchema` and `CallToolRequestSchema`
 - **Error Handling**: Graceful handling of authentication and API errors
 
 #### 2. OAuth Handler (`src/oauth.ts`)
+
 - **Flow**: Authorization Code Grant with PKCE implementation
 - **Local Server**: Temporary HTTP server for OAuth callback handling
 - **Token Management**: Storage and automatic refresh of access tokens
 - **Security**: Secure random PKCE code generation and validation
 
 #### 3. Mural API Client (`src/mural-client.ts`)
+
 - **HTTP Client**: Configured for Mural API base URL and headers
 - **Authentication**: Automatic token attachment and refresh handling
 - **Rate Limiting**: Respect Mural API rate limits
 - **Error Handling**: Comprehensive API error response handling
 
 #### 4. Type Definitions (`src/types.ts`)
+
 - **Mural Types**: Workspace, authentication response interfaces
 - **MCP Types**: Tool definitions and response structures
 - **OAuth Types**: Token, authorization request/response types
 
 ### File Structure
+
 ```
 mural-mcp/
 ├── package.json              # Dependencies and build scripts
@@ -77,6 +84,7 @@ mural-mcp/
 ### Core Tool Implementation
 
 #### `list-workspaces` Tool
+
 - **Description**: "List all workspaces the authenticated user has access to"
 - **Input Schema**: No parameters required (uses stored credentials)
 - **Output**: Array of workspace objects with:
@@ -91,6 +99,7 @@ mural-mcp/
 ## Technical Implementation Details
 
 ### Dependencies
+
 ```json
 {
   "@modelcontextprotocol/sdk": "^latest",
@@ -101,6 +110,7 @@ mural-mcp/
 ```
 
 ### OAuth Flow Sequence
+
 1. **Initialization**: Generate PKCE code verifier and challenge
 2. **Authorization**: Open browser to Mural authorization URL
 3. **Callback**: Handle OAuth callback on local server
@@ -109,6 +119,7 @@ mural-mcp/
 6. **Refresh**: Automatically refresh expired tokens
 
 ### Environment Configuration
+
 ```bash
 MURAL_CLIENT_ID=your_client_id
 MURAL_CLIENT_SECRET=your_client_secret
@@ -116,6 +127,7 @@ MURAL_REDIRECT_URI=http://localhost:3000/callback
 ```
 
 ### MCP Server Capabilities
+
 ```typescript
 {
   name: "mural-mcp-server",
@@ -139,18 +151,21 @@ MURAL_REDIRECT_URI=http://localhost:3000/callback
 ## Development Phases
 
 ### Phase 1: Setup & Authentication
+
 - [ ] Project scaffolding and dependencies
 - [ ] OAuth 2.0 flow implementation
 - [ ] Token storage and refresh mechanism
 - [ ] Basic Mural API client
 
 ### Phase 2: MCP Integration
+
 - [ ] MCP server setup with stdio transport
 - [ ] Tool registration and request handling
 - [ ] Error handling and logging
 - [ ] Integration testing
 
 ### Phase 3: Workspace Operations
+
 - [ ] Workspace listing implementation
 - [ ] Data formatting and response structure
 - [ ] Comprehensive error handling
@@ -159,6 +174,7 @@ MURAL_REDIRECT_URI=http://localhost:3000/callback
 ## Future Enhancements
 
 Beyond the MVP, potential expansions include:
+
 - Room and mural listing within workspaces
 - Mural creation and modification tools
 - Member management operations
@@ -168,6 +184,7 @@ Beyond the MVP, potential expansions include:
 ## Success Criteria
 
 The MVP is considered successful when:
+
 1. ✅ OAuth authentication completes successfully
 2. ✅ Access tokens are properly stored and refreshed
 3. ✅ MCP server responds to tool calls correctly
@@ -177,5 +194,5 @@ The MVP is considered successful when:
 
 ---
 
-*Last Updated: August 5, 2025*  
-*Version: 1.0*
+_Last Updated: August 5, 2025_  
+_Version: 1.0_

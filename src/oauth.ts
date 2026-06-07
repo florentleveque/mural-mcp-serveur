@@ -1,17 +1,11 @@
-import { randomBytes, createHash } from 'crypto';
-import { URL, URLSearchParams } from 'url';
-import http from 'http';
-import fs from 'fs/promises';
-import path from 'path';
-import os from 'os';
-import type {
-  PKCEChallenge,
-  AuthorizationParams,
-  TokenExchangeParams,
-  RefreshTokenParams,
-  OAuthTokens,
-  OAuthError
-} from './types.js';
+import { createHash, randomBytes } from 'node:crypto';
+import fs from 'node:fs/promises';
+import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
+import { URL, URLSearchParams } from 'node:url';
+
+import type { AuthorizationParams, OAuthError, OAuthTokens, PKCEChallenge, RefreshTokenParams, TokenExchangeParams } from './types.js';
 
 const MURAL_OAUTH_BASE = 'https://app.mural.co/api/public/v1/authorization/oauth2';
 const TOKEN_FILE_PATH = path.join(os.homedir(), '.mural-mcp-tokens.json');
@@ -27,16 +21,7 @@ export class MuralOAuth {
     clientId: string,
     clientSecret?: string,
     redirectUri = 'http://localhost:3000/callback',
-    scopes = [
-      'workspaces:read',
-      'rooms:read', 
-      'rooms:write',
-      'murals:read',
-      'murals:write',
-      'templates:read',
-      'templates:write',
-      'identity:read'
-    ]
+    scopes = ['workspaces:read', 'rooms:read', 'rooms:write', 'murals:read', 'murals:write', 'templates:read', 'templates:write', 'identity:read'],
   ) {
     this.clientId = clientId;
     this.clientSecret = clientSecret;
@@ -46,14 +31,12 @@ export class MuralOAuth {
 
   private generatePKCEChallenge(): PKCEChallenge {
     const codeVerifier = randomBytes(32).toString('base64url');
-    const codeChallenge = createHash('sha256')
-      .update(codeVerifier)
-      .digest('base64url');
-    
+    const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
+
     return {
       codeVerifier,
       codeChallenge,
-      codeChallengeMethod: 'S256'
+      codeChallengeMethod: 'S256',
     };
   }
 
@@ -65,7 +48,7 @@ export class MuralOAuth {
       response_type: 'code',
       code_challenge: pkce.codeChallenge,
       code_challenge_method: pkce.codeChallengeMethod,
-      ...(state && { state })
+      ...(state && { state }),
     };
 
     const url = new URL(MURAL_OAUTH_BASE);
@@ -76,28 +59,23 @@ export class MuralOAuth {
     return url.toString();
   }
 
-  private async exchangeCodeForTokens(
-    code: string,
-    codeVerifier: string
-  ): Promise<OAuthTokens> {
+  private async exchangeCodeForTokens(code: string, codeVerifier: string): Promise<OAuthTokens> {
     const params: TokenExchangeParams = {
       client_id: this.clientId,
       ...(this.clientSecret && { client_secret: this.clientSecret }),
       code,
       code_verifier: codeVerifier,
       grant_type: 'authorization_code',
-      redirect_uri: this.redirectUri
+      redirect_uri: this.redirectUri,
     };
 
     const response = await fetch(`${MURAL_OAUTH_BASE}/token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json'
+        Accept: 'application/json',
       },
-      body: new URLSearchParams(Object.fromEntries(
-        Object.entries(params).filter(([, value]) => value !== undefined)
-      ))
+      body: new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined))),
     });
 
     const data = await response.json();
@@ -108,8 +86,8 @@ export class MuralOAuth {
     }
 
     const tokens = data as OAuthTokens;
-    tokens.expires_at = Date.now() + (tokens.expires_in * 1000);
-    
+    tokens.expires_at = Date.now() + tokens.expires_in * 1000;
+
     return tokens;
   }
 
@@ -118,18 +96,16 @@ export class MuralOAuth {
       client_id: this.clientId,
       ...(this.clientSecret && { client_secret: this.clientSecret }),
       refresh_token: refreshToken,
-      grant_type: 'refresh_token'
+      grant_type: 'refresh_token',
     };
 
     const response = await fetch(`${MURAL_OAUTH_BASE}/token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json'
+        Accept: 'application/json',
       },
-      body: new URLSearchParams(Object.fromEntries(
-        Object.entries(params).filter(([, value]) => value !== undefined)
-      ))
+      body: new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined))),
     });
 
     const data = await response.json();
@@ -140,8 +116,8 @@ export class MuralOAuth {
     }
 
     const tokens = data as OAuthTokens;
-    tokens.expires_at = Date.now() + (tokens.expires_in * 1000);
-    
+    tokens.expires_at = Date.now() + tokens.expires_in * 1000;
+
     return tokens;
   }
 
@@ -166,7 +142,7 @@ export class MuralOAuth {
   private async startCallbackServer(expectedState?: string): Promise<{ code: string; state?: string }> {
     return new Promise((resolve, reject) => {
       let resolved = false;
-      
+
       const server = http.createServer((req, res) => {
         if (req.url?.startsWith('/callback')) {
           // Prevent multiple resolutions
@@ -226,7 +202,7 @@ export class MuralOAuth {
         console.log('OAuth callback server started on http://localhost:3000');
       });
 
-      server.on('error', (error) => {
+      server.on('error', error => {
         if (!resolved) {
           resolved = true;
           reject(error);
@@ -234,13 +210,16 @@ export class MuralOAuth {
       });
 
       // Add timeout to prevent hanging
-      setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          server.close();
-          reject(new Error('Authentication timeout after 5 minutes'));
-        }
-      }, 5 * 60 * 1000);
+      setTimeout(
+        () => {
+          if (!resolved) {
+            resolved = true;
+            server.close();
+            reject(new Error('Authentication timeout after 5 minutes'));
+          }
+        },
+        5 * 60 * 1000,
+      );
     });
   }
 
@@ -252,7 +231,7 @@ export class MuralOAuth {
 
     // Start new authentication and store the promise
     this.authenticationPromise = this.performAuthentication();
-    
+
     try {
       const tokens = await this.authenticationPromise;
       return tokens;
@@ -291,12 +270,12 @@ export class MuralOAuth {
 
     // Start callback server and wait for response
     const callbackPromise = this.startCallbackServer(state);
-    
+
     // Open browser automatically if possible
-    const { spawn } = await import('child_process');
+    const { spawn } = await import('node:child_process');
     const platform = process.platform;
     const command = platform === 'darwin' ? 'open' : platform === 'win32' ? 'start' : 'xdg-open';
-    
+
     try {
       const browserProcess = spawn(command, [authUrl], { stdio: 'ignore', detached: true });
       // spawn() reports failures (e.g. xdg-open missing on WSL/Linux) via an async
@@ -310,11 +289,11 @@ export class MuralOAuth {
     }
 
     const { code } = await callbackPromise;
-    
+
     // Exchange code for tokens
     const tokens = await this.exchangeCodeForTokens(code, pkce.codeVerifier);
     await this.saveTokens(tokens);
-    
+
     console.log('Authentication successful!');
     return tokens;
   }
