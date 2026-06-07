@@ -118,9 +118,13 @@ export class MuralClient {
             // If error response isn't JSON, use status text
           }
 
-          // Don't retry on client errors (4xx except 429) or auth errors
+          // Don't retry on client errors (4xx except 429) or auth errors.
+          // Mark the error as non-retryable so the catch block below rethrows
+          // it immediately instead of applying the retry/backoff logic.
           if (response.status >= 400 && response.status < 500 && response.status !== 429) {
-            throw new Error(`Mural API request failed: ${errorMessage}`);
+            const clientError = new Error(`Mural API request failed: ${errorMessage}`) as Error & { nonRetryable?: boolean };
+            clientError.nonRetryable = true;
+            throw clientError;
           }
 
           // Retry on server errors (5xx) with exponential backoff
@@ -145,6 +149,7 @@ export class MuralClient {
       } catch (error) {
         // If it's our last attempt or a non-retryable error, throw
         if (attempt === maxRetries || error instanceof Error && (
+          (error as Error & { nonRetryable?: boolean }).nonRetryable === true ||
           error.message.includes('Rate limit exceeded') ||
           error.message.includes('authentication') ||
           error.message.includes('authorization')
