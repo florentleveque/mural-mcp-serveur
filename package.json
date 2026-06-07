@@ -15,6 +15,9 @@
     "dev": "tsc --watch",
     "start": "node build/index.js",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "prepublishOnly": "pnpm build"
   },
   "keywords": [
@@ -58,8 +61,10 @@
     "@semantic-release/npm": "^12.0.1",
     "@semantic-release/release-notes-generator": "^14.0.3",
     "@types/node": "^24.2.0",
+    "@vitest/coverage-v8": "^4.1.8",
     "conventional-changelog-conventionalcommits": "^8.0.0",
     "semantic-release": "^24.2.3",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "vitest": "^4.1.8"
   }
 }

@@ -14,6 +14,9 @@ Use `pnpm` for all package management operations.
 - `pnpm run prepublishOnly` - Pre-publish build step
 
 ### Testing and Debugging
+- `pnpm test` - Run unit tests (Vitest, mocked HTTP/fs — no credentials needed)
+- `pnpm test:watch` - Run unit tests in watch mode
+- `pnpm test:coverage` - Run unit tests with coverage report
 - Test the MCP server manually: `node build/index.js`
 - Use MCP inspector: `npx @modelcontextprotocol/inspector node build/index.js`
 - Test OAuth flow: Set environment variables and run `pnpm start`
