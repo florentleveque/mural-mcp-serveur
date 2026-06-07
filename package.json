@@ -15,9 +15,6 @@
     "dev": "tsc --watch",
     "start": "node build/index.js",
     "typecheck": "tsc --noEmit",
-    "test": "node tests/run-tests.js",
-    "test:parallel": "node tests/run-tests.js --parallel",
-    "test:tool": "node tests/run-tests.js --tool=",
     "prepublishOnly": "pnpm build"
   },
   "keywords": [
