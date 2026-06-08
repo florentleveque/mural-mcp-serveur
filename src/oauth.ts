@@ -9,6 +9,9 @@ import type { AuthorizationParams, OAuthError, OAuthTokens, PKCEChallenge, Refre
 
 const MURAL_OAUTH_BASE = 'https://app.mural.co/api/public/v1/authorization/oauth2';
 const TOKEN_FILE_PATH = path.join(os.homedir(), '.mural-mcp-tokens.json');
+// Refresh slightly before the real expiry so a token that would lapse mid-request
+// is renewed proactively instead of failing the next API call with a 401.
+const EXPIRY_MARGIN_MS = 30_000;
 
 export class MuralOAuth {
   private clientId: string;
@@ -250,7 +253,7 @@ export class MuralOAuth {
   private async performAuthentication(): Promise<OAuthTokens> {
     // Check for existing valid tokens
     const existingTokens = await this.loadTokens();
-    if (existingTokens && existingTokens.expires_at && existingTokens.expires_at > Date.now()) {
+    if (existingTokens && existingTokens.expires_at && existingTokens.expires_at > Date.now() + EXPIRY_MARGIN_MS) {
       return existingTokens;
     }
 

@@ -209,6 +209,21 @@ describe('MuralOAuth', () => {
       expect(console.log).not.toHaveBeenCalled();
     });
 
+    it('refreshes a token that expires within the safety margin', async () => {
+      // Still valid by raw expiry (+10 s) but inside the 30 s margin → refresh proactively.
+      const stored = mockOAuthTokens({ expires_at: Date.now() + 10_000, refresh_token: 'old-rt' });
+      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
+      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+      vi.mocked(fs.chmod).mockResolvedValue(undefined);
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: 'new-at', refresh_token: 'new-rt', expires_in: 3600 }));
+
+      const tokens = await createOAuth('secret').authenticate();
+
+      expect(tokens.access_token).toBe('new-at');
+      const body = fetchMock.mock.calls[0]?.[1]?.body as URLSearchParams;
+      expect(body.get('grant_type')).toBe('refresh_token');
+    });
+
     it('getValidAccessToken returns the access token of valid stored tokens', async () => {
       const stored = mockOAuthTokens({ expires_at: Date.now() + 60_000 });
       vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
