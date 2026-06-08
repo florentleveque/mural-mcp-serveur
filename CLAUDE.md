@@ -83,7 +83,7 @@ See `README.md` for the full per-tool description. Grouped overview:
 - **Workspaces**: `list-workspaces`, `get-workspace`
 - **Rooms**: `list-workspace-rooms`, `list-room-boards`, `create-room`
 - **Templates**: `list-workspace-templates`, `create-mural-from-template`
-- **Murals**: `list-workspace-boards`, `get-board`, `create-mural`, `update-mural`, `delete-mural`, `duplicate-mural`, `export-mural`, `get-export-status`, `download-export`
+- **Murals**: `list-workspace-boards`, `get-board`, `create-mural`, `update-mural`, `delete-mural`, `duplicate-mural`, `export-mural`, `download-export`
 - **Widgets**: `get-mural-widgets`, `get-mural-widget`, `create-sticky-notes`, `update-sticky-note`, `create-shapes`, `create-arrows`, `create-text-boxes`, `create-titles`, `create-areas`, `update-widget`, `delete-widget`
 
 Read tools return a compact projection by default (see `src/projections.ts`); pass `verbose: true` to get the full raw object.

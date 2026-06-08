@@ -53,8 +53,7 @@ A Model Context Protocol (MCP) server that provides integration with the Mural v
 - `delete-mural`: Permanently delete a mural (irreversible)
 - `duplicate-mural`: Duplicate a mural into a room
 - `export-mural`: Start an async export of a mural in a given format (returns an `exportId`)
-- `get-export-status`: Check an export job and get the download URL once ready (poll with the `exportId`)
-- `download-export`: Download a ready export to a local file (`outputPath`); returns `ready:false` without writing if not ready yet
+- `download-export`: Download an export to a local file (`outputPath`) — resolves the URL itself; returns `ready:false` without writing if not ready yet, so call it again until ready
 
 **Widgets**
 

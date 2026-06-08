@@ -391,23 +391,9 @@ async function main() {
           },
         },
         {
-          name: 'get-export-status',
-          description:
-            'Check the status of an async mural export (requires murals:read). Optional/observability-only: returns ready:true plus the download URL when the file is available, ready:false while still processing. To actually fetch the file you do not need this — call download-export directly (it resolves the URL itself). Use this only to report progress to the user',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              muralId: { type: 'string', description: 'The unique identifier of the mural being exported' },
-              exportId: { type: 'string', description: 'The export job identifier returned by export-mural' },
-            },
-            required: ['muralId', 'exportId'],
-            additionalProperties: false,
-          },
-        },
-        {
           name: 'download-export',
           description:
-            'Download a ready mural export to a local file (requires murals:read). Resolves the export URL itself then writes the file to outputPath. Single-shot: if the export is not ready yet it returns ready:false without writing. Normal usage: call this directly (no need for get-export-status first) and, while it returns ready:false, wait a few seconds and call it again until ready:true',
+            'Download a mural export to a local file (requires murals:read). Resolves the export URL itself then writes the file to outputPath. Single-shot: if the export is not ready yet it returns ready:false without writing. Normal usage: call this with the exportId returned by export-mural and, while it returns ready:false, wait a few seconds and call it again until ready:true',
           inputSchema: {
             type: 'object',
             properties: {
@@ -1069,17 +1055,6 @@ async function main() {
             export: result,
             message: `Started export of mural ${muralId} as ${downloadFormat}. Call download-export with the returned exportId, retrying while it returns ready:false until ready:true`,
           });
-        }
-
-        case 'get-export-status': {
-          const schema = z.object({
-            muralId: z.string().min(1),
-            exportId: z.string().min(1),
-          });
-          const { muralId, exportId } = schema.parse(args);
-          const status = await muralClient.getExportStatus(muralId, exportId);
-          const ready = typeof status?.url === 'string';
-          return jsonResult({ status, ready, message: ready ? `Export ${exportId} is ready` : `Export ${exportId} is still processing` });
         }
 
         case 'download-export': {
