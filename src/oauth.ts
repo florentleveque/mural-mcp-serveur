@@ -157,7 +157,7 @@ export class MuralOAuth {
           const state = url.searchParams.get('state');
           const error = url.searchParams.get('error');
 
-          console.log(`Callback received - Code: ${code ? 'present' : 'missing'}, State: ${state}, Expected: ${expectedState}`);
+          console.error(`Callback received - Code: ${code ? 'present' : 'missing'}, State: ${state}, Expected: ${expectedState}`);
 
           if (error) {
             res.writeHead(400, { 'Content-Type': 'text/html' });
@@ -199,7 +199,7 @@ export class MuralOAuth {
       });
 
       server.listen(3000, () => {
-        console.log('OAuth callback server started on http://localhost:3000');
+        console.error('OAuth callback server started on http://localhost:3000');
       });
 
       server.on('error', error => {
@@ -264,9 +264,9 @@ export class MuralOAuth {
     const state = randomBytes(16).toString('hex');
     const authUrl = this.generateAuthorizationUrl(pkce, state);
 
-    console.log('Please open the following URL in your browser to authenticate:');
-    console.log(authUrl);
-    console.log('\nWaiting for authentication callback...');
+    console.error('Please open the following URL in your browser to authenticate:');
+    console.error(authUrl);
+    console.error('\nWaiting for authentication callback...');
 
     // Start callback server and wait for response
     const callbackPromise = this.startCallbackServer(state);
@@ -294,7 +294,7 @@ export class MuralOAuth {
     const tokens = await this.exchangeCodeForTokens(code, pkce.codeVerifier);
     await this.saveTokens(tokens);
 
-    console.log('Authentication successful!');
+    console.error('Authentication successful!');
     return tokens;
   }
 
@@ -310,7 +310,7 @@ export class MuralOAuth {
   async clearTokens(): Promise<void> {
     try {
       await fs.unlink(TOKEN_FILE_PATH);
-      console.log('Authentication tokens cleared');
+      console.error('Authentication tokens cleared');
     } catch (error) {
       // File doesn't exist, which is fine
     }
