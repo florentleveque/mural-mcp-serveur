@@ -1,3 +1,19 @@
+## [1.2.0](https://github.com/florentleveque/mural-mcp-serveur/compare/v1.1.0...v1.2.0) (2026-06-08)
+
+### Features
+
+* **client:** derive 429 wait time from x-ratelimit-reset headers ([49271e8](https://github.com/florentleveque/mural-mcp-serveur/commit/49271e8d680bf09c78747d15b84dbdfb57013548)), closes [#9](https://github.com/florentleveque/mural-mcp-serveur/issues/9)
+* **client:** introduce typed MuralApiError and replace message-based error checks ([eab1087](https://github.com/florentleveque/mural-mcp-serveur/commit/eab10874531d9229dc42cf8eb4cd15a29ef1e655)), closes [#9](https://github.com/florentleveque/mural-mcp-serveur/issues/9)
+* **server:** add verbose escape hatch to board/room/workspace/template reads ([d6ee84c](https://github.com/florentleveque/mural-mcp-serveur/commit/d6ee84cccec048e1bfed4768de28bb3d974bb74d))
+* **server:** centralize MCP response formatting; fix getMuralWidget double-value ([5a83bb0](https://github.com/florentleveque/mural-mcp-serveur/commit/5a83bb0bf79e0a547435f761b5ea329d3513e162))
+* **server:** expose status and errorCode in MCP error responses ([9c5d94f](https://github.com/florentleveque/mural-mcp-serveur/commit/9c5d94f386083ba7251195c0b6a5e14f18a28040)), closes [#9](https://github.com/florentleveque/mural-mcp-serveur/issues/9)
+* **types:** align interfaces with real Mural API + add compact projections ([6ce688d](https://github.com/florentleveque/mural-mcp-serveur/commit/6ce688d25bfa4eb0d82c99b3d9fa961c3d198654))
+
+### Bug Fixes
+
+* **projections:** keep text content of 'text' widgets ([37dbaea](https://github.com/florentleveque/mural-mcp-serveur/commit/37dbaea23d5da98917fc2356341adb8ba69a88b8))
+* **projections:** preserve text/title for unmodeled widget types; drop empty strings ([e65db9d](https://github.com/florentleveque/mural-mcp-serveur/commit/e65db9d98ec4e0c4a48031f2b0efc6200e2a5ab1))
+
 ## [1.1.0](https://github.com/florentleveque/mural-mcp-serveur/compare/v1.0.0...v1.1.0) (2026-06-07)
 
 ### Features
