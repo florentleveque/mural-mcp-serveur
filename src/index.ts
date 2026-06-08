@@ -68,7 +68,8 @@ async function main() {
       tools: [
         {
           name: 'list-workspaces',
-          description: 'List all workspaces the authenticated user has access to',
+          description:
+            'List all workspaces the authenticated user has access to. Compact view keeps: id, name. Pass verbose=true for the full raw objects (description, image, locked, suspended, createdOn, ...).',
           inputSchema: {
             type: 'object',
             properties: {
@@ -93,7 +94,8 @@ async function main() {
         },
         {
           name: 'get-workspace',
-          description: 'Get detailed information about a specific workspace',
+          description:
+            'Get detailed information about a specific workspace. Compact view keeps: id, name. Pass verbose=true for the full raw object (description, image, locked, suspended, createdOn, ...).',
           inputSchema: {
             type: 'object',
             properties: {
@@ -148,7 +150,8 @@ async function main() {
         },
         {
           name: 'list-workspace-boards',
-          description: 'List all boards (murals) within a specific workspace',
+          description:
+            'List all boards (murals) within a specific workspace. Compact view keeps: id, title, status, roomId, workspaceId, infinite, updatedOn, _canvasLink. Pass verbose=true for the full raw objects (thumbnailUrl, sharing/visitor links, state, createdBy, ...).',
           inputSchema: {
             type: 'object',
             properties: {
@@ -167,7 +170,8 @@ async function main() {
         },
         {
           name: 'list-room-boards',
-          description: 'List all boards (murals) within a specific room',
+          description:
+            'List all boards (murals) within a specific room. Compact view keeps: id, title, status, roomId, workspaceId, infinite, updatedOn, _canvasLink. Pass verbose=true for the full raw objects (thumbnailUrl, sharing/visitor links, state, createdBy, ...).',
           inputSchema: {
             type: 'object',
             properties: {
@@ -186,7 +190,8 @@ async function main() {
         },
         {
           name: 'list-workspace-rooms',
-          description: 'List all rooms within a specific workspace (use a room id with list-room-boards). Returns all pages.',
+          description:
+            'List all rooms within a specific workspace (use a room id with list-room-boards). Returns all pages. Compact view keeps: id, name, type, workspaceId. Pass verbose=true for the full raw objects (confidential, isMember, description, favorite, createdBy, ...).',
           inputSchema: {
             type: 'object',
             properties: {
@@ -209,7 +214,8 @@ async function main() {
         },
         {
           name: 'list-workspace-templates',
-          description: "List a workspace's templates (default + custom), or search them by name. Returns all pages.",
+          description:
+            "List a workspace's templates (default + custom), or search them by name. Returns all pages. Compact view keeps: id, name, description, type. Pass verbose=true for the full raw objects (thumbUrl, viewLink, createdBy, updatedOn, ...).",
           inputSchema: {
             type: 'object',
             properties: {
@@ -382,7 +388,8 @@ async function main() {
         },
         {
           name: 'get-board',
-          description: 'Get detailed information about a specific board (mural)',
+          description:
+            'Get detailed information about a specific board (mural). Compact view keeps: id, title, status, roomId, workspaceId, infinite, updatedOn, _canvasLink. Pass verbose=true for the full raw object (thumbnailUrl, sharing/visitor links, state, createdBy, ...).',
           inputSchema: {
             type: 'object',
             properties: {
@@ -411,7 +418,8 @@ async function main() {
         // Content reading tools
         {
           name: 'get-mural-widgets',
-          description: 'Get all widgets from a mural. Returns a compact view by default; set verbose to true for the full raw widget objects.',
+          description:
+            'Get all widgets from a mural. Compact view keeps: id, type, x, y, width, height, parentId plus per-type content (text, shape, backgroundColor, title, url, filename, points, ...). Pass verbose=true for the full raw widget objects (full style, rotation, authorship, flags, ...).',
           inputSchema: {
             type: 'object',
             properties: {
@@ -431,7 +439,7 @@ async function main() {
         {
           name: 'get-mural-widget',
           description:
-            'Get details of a specific widget by its ID (requires both the mural id and the widget id). Returns a compact view by default; set verbose to true for the full raw widget object.',
+            'Get details of a specific widget by its ID (requires both the mural id and the widget id). Compact view keeps: id, type, x, y, width, height, parentId plus per-type content (text, shape, backgroundColor, title, url, filename, points, ...). Pass verbose=true for the full raw widget object (full style, rotation, authorship, flags, ...).',
           inputSchema: {
             type: 'object',
             properties: {
