@@ -123,7 +123,10 @@ export class MuralOAuth {
 
   private async saveTokens(tokens: OAuthTokens): Promise<void> {
     try {
-      await fs.writeFile(TOKEN_FILE_PATH, JSON.stringify(tokens, null, 2));
+      await fs.writeFile(TOKEN_FILE_PATH, JSON.stringify(tokens, null, 2), { mode: 0o600 });
+      // writeFile only applies `mode` when creating the file; chmod also tightens
+      // a file left world-readable (0o644) by an earlier version of this server.
+      await fs.chmod(TOKEN_FILE_PATH, 0o600);
     } catch (error) {
       console.error('Failed to save tokens:', error);
       throw new Error('Failed to save authentication tokens');
