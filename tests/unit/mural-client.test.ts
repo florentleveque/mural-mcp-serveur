@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { MuralClient } from '../../src/mural-client.js';
+import { MuralApiError, MuralClient } from '../../src/mural-client.js';
 import { mockFetchResponse, mockOAuthTokens } from './helpers.js';
 
 // MuralClient instantiates MuralOAuth and MuralRateLimiter internally,
@@ -122,6 +122,63 @@ describe('MuralClient', () => {
       expect(fetchMock).toHaveBeenCalledTimes(4); // initial + 3 retries
     });
 
+    it('derives the 429 wait time from x-ratelimit-reset when the user bucket is exhausted', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(1_000_000_000_000); // round timestamp so epoch math is exact
+      const resetEpoch = Date.now() / 1000 + 2; // 2s ahead, in seconds
+      fetchMock
+        .mockResolvedValueOnce(mockFetchResponse(429, null, { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(resetEpoch) }))
+        .mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
+
+      const promise = createClient().getWorkspace('ws1');
+      await vi.advanceTimersByTimeAsync(2000);
+
+      await expect(promise).resolves.toEqual({ id: 'ws1' });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('derives the 429 wait time from x-ratelimit-app-reset when the app bucket is exhausted', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(1_000_000_000_000);
+      const resetEpoch = Date.now() / 1000 + 1;
+      fetchMock
+        .mockResolvedValueOnce(
+          mockFetchResponse(429, null, {
+            'x-ratelimit-remaining': '5',
+            'x-ratelimit-app-remaining': '0',
+            'x-ratelimit-app-reset': String(resetEpoch),
+          }),
+        )
+        .mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
+
+      const promise = createClient().getWorkspace('ws1');
+      await vi.advanceTimersByTimeAsync(1000);
+
+      await expect(promise).resolves.toEqual({ id: 'ws1' });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('throws immediately on 429 when the reset is beyond the 30s cap', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(1_000_000_000_000);
+      const resetEpoch = Date.now() / 1000 + 60; // 60s ahead
+      fetchMock.mockResolvedValue(mockFetchResponse(429, null, { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(resetEpoch) }));
+
+      await expect(createClient().getWorkspace('ws1')).rejects.toThrow('API rate limit exceeded');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('falls back to exponential backoff on 429 without any rate-limit header', async () => {
+      vi.useFakeTimers();
+      fetchMock.mockResolvedValueOnce(mockFetchResponse(429)).mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
+
+      const promise = createClient().getWorkspace('ws1');
+      await vi.advanceTimersByTimeAsync(1000); // 2^0 * 1000
+
+      await expect(promise).resolves.toEqual({ id: 'ws1' });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
     it('honours the Retry-After header on 429 then retries', async () => {
       vi.useFakeTimers();
       fetchMock.mockResolvedValueOnce(mockFetchResponse(429, null, { 'Retry-After': '2' })).mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
@@ -206,6 +263,22 @@ describe('MuralClient', () => {
     });
   });
 
+  describe('getMuralWidget (single)', () => {
+    it('unwraps the value envelope returned by the single-widget endpoint', async () => {
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { value: { id: 'w1', type: 'sticky note' } }));
+
+      const widget = await createClient().getMuralWidget('m1', 'w1');
+
+      expect(widget).toEqual({ id: 'w1', type: 'sticky note' });
+    });
+
+    it('returns the body as-is when there is no value envelope', async () => {
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { id: 'w1', type: 'shape' }));
+
+      await expect(createClient().getMuralWidget('m1', 'w1')).resolves.toEqual({ id: 'w1', type: 'shape' });
+    });
+  });
+
   describe('representative endpoint methods', () => {
     it('getWorkspaces unwraps the value array', async () => {
       fetchMock.mockResolvedValue(mockFetchResponse(200, { value: [{ id: 'ws1' }] }));
@@ -235,6 +308,47 @@ describe('MuralClient', () => {
       const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
       expect(url).toBe('https://app.mural.co/api/public/v1/murals/m1/widgets/w1');
       expect(options.method).toBe('DELETE');
+    });
+  });
+
+  describe('MuralApiError', () => {
+    it('exposes status, errorCode and apiMessage from the API error body', async () => {
+      fetchMock.mockResolvedValue(mockFetchResponse(404, { code: 'MURAL_NOT_FOUND', message: 'Mural not found' }));
+
+      const error = await createClient()
+        .getWorkspace('ws1')
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(MuralApiError);
+      const apiError = error as MuralApiError;
+      expect(apiError.status).toBe(404);
+      expect(apiError.errorCode).toBe('MURAL_NOT_FOUND');
+      expect(apiError.apiMessage).toBe('Mural not found');
+      expect(apiError.message).toContain('HTTP 404');
+    });
+
+    it('marks 4xx errors as nonRetryable and 5xx as retryable', () => {
+      expect(new MuralApiError(403, 'Forbidden').nonRetryable).toBe(true);
+      expect(new MuralApiError(429, 'Too Many Requests').nonRetryable).toBe(true); // only thrown once retries are exhausted
+      expect(new MuralApiError(500, 'Server Error').nonRetryable).toBe(false);
+    });
+
+    it('keeps a message without API details when the error body is not JSON', async () => {
+      fetchMock.mockResolvedValue(new Response('plain text', { status: 400, statusText: 'Bad Request' }));
+
+      const error = await createClient()
+        .getWorkspace('ws1')
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(MuralApiError);
+      expect((error as MuralApiError).errorCode).toBeUndefined();
+      expect((error as MuralApiError).message).toBe('Mural API request failed: HTTP 400: Bad Request');
+    });
+
+    it('maps an API 403 INVALID_SCOPE to a permission-denied message in scope-aware methods', async () => {
+      fetchMock.mockResolvedValue(mockFetchResponse(403, { code: 'INVALID_SCOPE', message: 'Invalid scope' }));
+
+      await expect(createClient().getMuralWidgets('m1')).rejects.toThrow(/^Permission denied/);
     });
   });
 });

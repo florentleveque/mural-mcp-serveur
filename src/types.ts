@@ -1,12 +1,32 @@
+// ============================================================================
+// MURAL API TYPES
+//
+// These interfaces mirror the real Mural public API v1 responses (captured
+// against app.mural.co on 2026-06-08), not a hand-written subset. The API may
+// return additional fields; the ones declared here are the observed ones.
+// The client returns these shapes verbatim; the LLM-facing trimming happens in
+// projections.ts.
+// ============================================================================
+
+/** Minimal user reference embedded in many entities (createdBy/updatedBy/...). */
+export interface MuralUserRef {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  alias?: string;
+  type?: string;
+}
+
 export interface MuralWorkspace {
   id: string;
   name: string;
-  url?: string;
-  created?: string;
-  memberCount?: number;
-  guestsAllowed?: boolean;
-  visitorsAllowed?: boolean;
-  deleted?: boolean;
+  description?: string;
+  image?: string;
+  locked?: boolean;
+  suspended?: boolean;
+  createdOn?: number;
+  sharingSettings?: Record<string, unknown>;
 }
 
 export interface OAuthTokens {
@@ -94,42 +114,51 @@ export interface RateLimitStatus {
 export interface MuralBoard {
   id: string;
   title: string;
-  createdOn?: string;
-  updatedOn?: string;
-  createdBy?: {
-    id: string;
-    firstName?: string;
-    lastName?: string;
-    email?: string;
-  };
+  status?: string;
+  roomId?: number | string;
   workspaceId?: string;
-  roomId?: string;
-  thumbnail?: string;
-  url?: string;
+  favorite?: boolean;
+  infinite?: boolean;
+  state?: string;
+  createdOn?: number;
+  updatedOn?: number;
+  createdBy?: MuralUserRef;
+  updatedBy?: MuralUserRef;
+  thumbnailUrl?: string;
+  _canvasLink?: string;
+  sharingSettings?: { link?: string } & Record<string, unknown>;
+  visitorsSettings?: { link?: string; visitors?: string; workspaceMembers?: string } & Record<string, unknown>;
 }
 
-// Loose shapes: only the fields we rely on are typed; the API returns more.
-// Refine after observing real responses (see issue #3 plan).
 export interface MuralRoom {
   id: number | string;
   name?: string;
   type?: string;
   confidential?: boolean;
+  favorite?: boolean;
+  description?: string;
   isMember?: boolean;
   workspaceId?: string;
   createdOn?: number | string;
   updatedOn?: number | string;
+  createdBy?: MuralUserRef;
+  updatedBy?: MuralUserRef;
 }
 
 export interface MuralTemplate {
   id: string;
   name?: string;
   description?: string;
-  workspaceId?: string;
   type?: string;
+  workspaceId?: string;
+  // For default templates the API returns the string "MURAL"; custom templates
+  // may return a user reference instead — hence the union.
+  createdBy?: string | MuralUserRef;
+  updatedBy?: string | MuralUserRef;
+  createdOn?: number | string;
+  updatedOn?: number | string;
   thumbUrl?: string;
   viewLink?: string;
-  createdOn?: number | string;
 }
 
 export interface MuralUser {
@@ -152,26 +181,30 @@ export interface ScopeCheckResult {
 // MURAL CONTENTS API TYPES
 // ============================================================================
 
-// Base widget interface
-export interface MuralWidget {
-  id: string;
-  type: string;
-  x: number;
-  y: number;
-  width?: number;
-  height?: number;
-  muralId: string;
-  createdBy?: {
-    id: string;
-    firstName?: string;
-    lastName?: string;
-    email?: string;
-  };
-  createdOn?: string;
-  updatedOn?: string;
+/**
+ * Loose style object returned on widgets. The actual keys depend on the widget
+ * kind (sticky note, shape, arrow...). Common observed keys are declared; the
+ * index signature keeps unknown kind-specific keys without losing type safety.
+ */
+export interface WidgetStyle {
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  borderStyle?: string;
+  font?: string;
+  fontSize?: number;
+  fontColor?: string;
+  textColor?: string;
+  textAlign?: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strike?: boolean;
+  border?: boolean;
+  [key: string]: unknown;
 }
 
-// Widget style interfaces
+/** Style accepted when creating/updating sticky notes (request side). */
 export interface WidgetTextStyle {
   backgroundColor?: string;
   textColor?: string;
@@ -180,92 +213,113 @@ export interface WidgetTextStyle {
   alignment?: 'left' | 'center' | 'right';
 }
 
-export interface WidgetBorderStyle {
-  backgroundColor?: string;
-  borderColor?: string;
-  borderWidth?: number;
-}
-
-export interface WidgetArrowStyle {
-  color?: string;
+/** Fields common to every widget returned by the API (response side). */
+export interface MuralWidgetBase {
+  id: string;
+  type: string;
+  x: number;
+  y: number;
   width?: number;
-  arrowheadType?: string;
+  height?: number;
+  rotation?: number;
+  parentId?: string | null;
+  title?: string;
+  style?: WidgetStyle;
+  // Layout / facilitation metadata (rarely needed by callers).
+  stackingOrder?: number;
+  presentationIndex?: number;
+  minLines?: number;
+  instruction?: string;
+  hidden?: boolean;
+  hideEditor?: boolean;
+  hideOwner?: boolean;
+  invisible?: boolean;
+  locked?: boolean;
+  lockedByFacilitator?: boolean;
+  viewLink?: string;
+  // Authorship metadata.
+  createdBy?: MuralUserRef;
+  updatedBy?: MuralUserRef;
+  contentEditedBy?: MuralUserRef;
+  createdOn?: number;
+  updatedOn?: number;
+  contentEditedOn?: number;
 }
 
-// Specific widget types
-export interface StickyNoteWidget extends MuralWidget {
+// Specific widget types — discriminated on `type`, carrying their content fields.
+export interface StickyNoteWidget extends MuralWidgetBase {
   type: 'sticky note';
   text: string;
-  style: WidgetTextStyle;
+  shape?: string;
 }
 
-export interface TextBoxWidget extends MuralWidget {
-  type: 'text box';
+// The API returns plain text widgets with type 'text' (the create endpoint
+// uses the 'text-box' kind, but the read response type is 'text').
+export interface TextBoxWidget extends MuralWidgetBase {
+  type: 'text';
   text: string;
-  style: WidgetTextStyle;
 }
 
-export interface TitleWidget extends MuralWidget {
+export interface TitleWidget extends MuralWidgetBase {
   type: 'title';
   text: string;
-  style: {
-    fontSize?: number;
-    fontFamily?: string;
-    textColor?: string;
-  };
 }
 
-export interface ShapeWidget extends MuralWidget {
+export interface ShapeWidget extends MuralWidgetBase {
   type: 'shape';
-  shape: 'rectangle' | 'circle' | 'triangle' | 'diamond';
-  style: WidgetBorderStyle;
+  shape?: string;
+  text?: string;
 }
 
-export interface ImageWidget extends MuralWidget {
+export interface ImageWidget extends MuralWidgetBase {
   type: 'image';
-  url: string;
-  title?: string;
+  url?: string;
   filename?: string;
 }
 
-export interface FileWidget extends MuralWidget {
+export interface FileWidget extends MuralWidgetBase {
   type: 'file';
-  filename: string;
-  url: string;
+  url?: string;
+  filename?: string;
   fileSize?: number;
   mimeType?: string;
 }
 
-export interface TableWidget extends MuralWidget {
+export interface TableWidget extends MuralWidgetBase {
   type: 'table';
-  rows: number;
-  columns: number;
-  data: string[][];
-  style?: {
-    headerBackgroundColor?: string;
-    borderColor?: string;
-  };
+  rows?: number;
+  columns?: number;
+  data?: unknown[][];
 }
 
-export interface AreaWidget extends MuralWidget {
+export interface AreaWidget extends MuralWidgetBase {
   type: 'area';
-  title?: string;
-  style: WidgetBorderStyle;
 }
 
-export interface ArrowWidget extends MuralWidget {
+export interface ArrowWidget extends MuralWidgetBase {
   type: 'arrow';
+  points?: { x: number; y: number }[];
   startWidget?: string;
   endWidget?: string;
-  startX?: number;
-  startY?: number;
-  endX?: number;
-  endY?: number;
-  style: WidgetArrowStyle;
+  arrowType?: string;
 }
 
-// Union type for all widgets
-export type AnyMuralWidget = StickyNoteWidget | TextBoxWidget | TitleWidget | ShapeWidget | ImageWidget | FileWidget | TableWidget | AreaWidget | ArrowWidget;
+// Union of all known widget shapes. `MuralWidgetBase` is included last as a
+// permissive fallback for widget types not enumerated above.
+export type MuralWidget =
+  | StickyNoteWidget
+  | TextBoxWidget
+  | TitleWidget
+  | ShapeWidget
+  | ImageWidget
+  | FileWidget
+  | TableWidget
+  | AreaWidget
+  | ArrowWidget
+  | MuralWidgetBase;
+
+// Backwards-compatible alias.
+export type AnyMuralWidget = MuralWidget;
 
 // Widget creation requests and responses
 export interface CreateWidgetRequest {

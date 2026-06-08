@@ -15,6 +15,32 @@ import type {
 
 const MURAL_API_BASE = 'https://app.mural.co/api/public/v1';
 
+/**
+ * Typed error for non-ok Mural API responses.
+ * Exposes the HTTP status and the machine-readable error code returned by
+ * the API body ({ code, message } — see developers.mural.co/public/docs/error-codes)
+ * so callers can branch on `status`/`errorCode` instead of message contents.
+ */
+export class MuralApiError extends Error {
+  readonly nonRetryable: boolean;
+
+  constructor(
+    public readonly status: number,
+    statusText: string,
+    public readonly errorCode?: string,
+    public readonly apiMessage?: string,
+  ) {
+    // Message format kept identical to the previous string-based errors
+    // so existing callers and tests relying on it keep working.
+    super(`Mural API request failed: HTTP ${status}: ${statusText}${apiMessage ? ` - ${apiMessage}` : ''}`);
+    this.name = 'MuralApiError';
+    // Client errors must never be retried by the catch-level retry logic.
+    // 429 included: retryable 429s are handled upstream with `continue`, so a
+    // thrown MuralApiError(429) only exists once retries are exhausted.
+    this.nonRetryable = status >= 400 && status < 500;
+  }
+}
+
 // Global authentication promise to prevent multiple concurrent auth flows
 let globalAuthPromise: Promise<string> | null = null;
 
@@ -87,43 +113,38 @@ export class MuralClient {
 
         // Handle rate limit responses from the API
         if (response.status === 429) {
-          const retryAfter = response.headers.get('Retry-After');
-          const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, attempt) * 1000;
+          const waitTime = this.resolve429WaitMs(response.headers, attempt);
 
           if (attempt < maxRetries && waitTime <= 30000) {
             console.warn(`API rate limit hit (HTTP 429). Retrying after ${waitTime}ms... (attempt ${attempt + 1}/${maxRetries + 1})`);
             await new Promise(resolve => setTimeout(resolve, waitTime));
             continue;
           } else {
-            throw new Error(`API rate limit exceeded (HTTP 429). Max retries reached or wait time too long.`);
+            throw new MuralApiError(429, 'Too Many Requests', undefined, 'API rate limit exceeded. Max retries reached or wait time too long.');
           }
         }
 
         if (!response.ok) {
-          let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+          let errorCode: string | undefined;
+          let apiMessage: string | undefined;
 
           try {
             const errorData = await response.json();
+            if (typeof errorData.code === 'string') {
+              errorCode = errorData.code;
+            }
             if (errorData.message) {
-              errorMessage += ` - ${errorData.message}`;
+              apiMessage = String(errorData.message);
             }
             if (errorData.errors && Array.isArray(errorData.errors)) {
-              errorMessage += ` - ${errorData.errors.join(', ')}`;
+              apiMessage = `${apiMessage ?? ''}${apiMessage ? ' - ' : ''}${errorData.errors.join(', ')}`;
             }
           } catch {
-            // If error response isn't JSON, use status text
+            // If error response isn't JSON, use status text only
           }
 
-          // Don't retry on client errors (4xx except 429) or auth errors.
-          // Mark the error as non-retryable so the catch block below rethrows
-          // it immediately instead of applying the retry/backoff logic.
-          if (response.status >= 400 && response.status < 500 && response.status !== 429) {
-            const clientError = new Error(`Mural API request failed: ${errorMessage}`) as Error & { nonRetryable?: boolean };
-            clientError.nonRetryable = true;
-            throw clientError;
-          }
-
-          // Retry on server errors (5xx) with exponential backoff
+          // Retry on server errors (5xx) with exponential backoff; client
+          // errors (4xx) are nonRetryable and rethrown by the catch below.
           if (attempt < maxRetries && response.status >= 500) {
             const backoffTime = Math.pow(2, attempt) * 1000;
             console.warn(`Server error (${response.status}). Retrying after ${backoffTime}ms... (attempt ${attempt + 1}/${maxRetries + 1})`);
@@ -131,7 +152,7 @@ export class MuralClient {
             continue;
           }
 
-          throw new Error(`Mural API request failed: ${errorMessage}`);
+          throw new MuralApiError(response.status, response.statusText, errorCode, apiMessage);
         }
 
         // Some endpoints (e.g. DELETE) return 204 No Content / an empty body;
@@ -142,14 +163,14 @@ export class MuralClient {
         const text = await response.text();
         return (text ? JSON.parse(text) : undefined) as T;
       } catch (error) {
-        // If it's our last attempt or a non-retryable error, throw
+        // If it's our last attempt or a non-retryable error, throw.
+        // The message checks guard OAuth errors coming from getAccessToken,
+        // which are plain Errors rather than MuralApiError instances.
         if (
           attempt === maxRetries ||
+          (error instanceof MuralApiError && error.nonRetryable) ||
           (error instanceof Error &&
-            ((error as Error & { nonRetryable?: boolean }).nonRetryable === true ||
-              error.message.includes('Rate limit exceeded') ||
-              error.message.includes('authentication') ||
-              error.message.includes('authorization')))
+            (error.message.includes('Rate limit exceeded') || error.message.includes('authentication') || error.message.includes('authorization')))
         ) {
           throw error;
         }
@@ -162,6 +183,29 @@ export class MuralClient {
     }
 
     throw new Error('Max retries exceeded');
+  }
+
+  /**
+   * Compute how long to wait after a 429 response.
+   * Mural does not send Retry-After; it sends x-ratelimit[-app]-reset (unix
+   * epoch seconds) alongside x-ratelimit[-app]-remaining. Prefer the exact
+   * reset of whichever bucket is exhausted, fall back to any reset header,
+   * then to the standard Retry-After, and finally to exponential backoff.
+   */
+  private resolve429WaitMs(headers: Headers, attempt: number): number {
+    const resetHeader =
+      headers.get('x-ratelimit-remaining') === '0'
+        ? headers.get('x-ratelimit-reset')
+        : headers.get('x-ratelimit-app-remaining') === '0'
+          ? headers.get('x-ratelimit-app-reset')
+          : (headers.get('x-ratelimit-reset') ?? headers.get('x-ratelimit-app-reset'));
+
+    if (resetHeader) {
+      return Math.max(0, parseInt(resetHeader) * 1000 - Date.now());
+    }
+
+    const retryAfter = headers.get('Retry-After');
+    return retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, attempt) * 1000;
   }
 
   async getWorkspaces(limit?: number, offset?: number): Promise<MuralWorkspace[]> {
@@ -264,7 +308,7 @@ export class MuralClient {
       const endpoint = openOnly ? `/workspaces/${workspaceId}/rooms/open` : `/workspaces/${workspaceId}/rooms`;
       return await this.fetchAllPages<MuralRoom>(endpoint, 'rooms:read');
     } catch (error) {
-      if (error instanceof Error && (error.message.includes('403') || error.message.includes('scope'))) {
+      if (error instanceof MuralApiError && (error.status === 403 || error.errorCode === 'INVALID_SCOPE')) {
         const scopeCheck = await this.checkScope('rooms:read');
         throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'rooms:read' scope and re-authenticate.`);
       }
@@ -286,7 +330,7 @@ export class MuralClient {
       }
       return await this.fetchAllPages<MuralTemplate>(endpoint, 'templates:read');
     } catch (error) {
-      if (error instanceof Error && (error.message.includes('403') || error.message.includes('scope'))) {
+      if (error instanceof MuralApiError && (error.status === 403 || error.errorCode === 'INVALID_SCOPE')) {
         const scopeCheck = await this.checkScope('templates:read');
         throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'templates:read' scope and re-authenticate.`);
       }
@@ -446,8 +490,8 @@ export class MuralClient {
       return Array.isArray(murals) ? murals : [];
     } catch (error) {
       // Check if error is scope-related and provide helpful message
-      if (error instanceof Error) {
-        if (error.message.includes('403') || error.message.includes('scope')) {
+      if (error instanceof MuralApiError) {
+        if (error.status === 403 || error.errorCode === 'INVALID_SCOPE') {
           const scopeCheck = await this.checkScope('murals:read');
           throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'murals:read' scope and re-authenticate.`);
         }
@@ -473,8 +517,8 @@ export class MuralClient {
       return Array.isArray(murals) ? murals : [];
     } catch (error) {
       // Check if error is scope-related and provide helpful message
-      if (error instanceof Error) {
-        if (error.message.includes('403') || error.message.includes('scope')) {
+      if (error instanceof MuralApiError) {
+        if (error.status === 403 || error.errorCode === 'INVALID_SCOPE') {
           const scopeCheck = await this.checkScope('murals:read');
           throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'murals:read' scope and re-authenticate.`);
         }
@@ -496,8 +540,8 @@ export class MuralClient {
       return mural;
     } catch (error) {
       // Check if error is scope-related and provide helpful message
-      if (error instanceof Error) {
-        if (error.message.includes('403') || error.message.includes('scope')) {
+      if (error instanceof MuralApiError) {
+        if (error.status === 403 || error.errorCode === 'INVALID_SCOPE') {
           const scopeCheck = await this.checkScope('murals:read');
           throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'murals:read' scope and re-authenticate.`);
         }
@@ -608,10 +652,7 @@ export class MuralClient {
 
       return {
         request: debugInfo,
-        response: {
-          value: responseData,
-          raw: responseData,
-        },
+        response: responseData,
         success: response.ok,
       };
     } catch (error) {
@@ -634,7 +675,7 @@ export class MuralClient {
       // (the endpoint pages at ~100 widgets).
       return await this.fetchAllPages<MuralWidget>(`/murals/${encodeURIComponent(muralId)}/widgets`, 'murals:read');
     } catch (error) {
-      if (error instanceof Error && (error.message.includes('403') || error.message.includes('scope'))) {
+      if (error instanceof MuralApiError && (error.status === 403 || error.errorCode === 'INVALID_SCOPE')) {
         const scopeCheck = await this.checkScope('murals:read');
         throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'murals:read' scope and re-authenticate.`);
       }
@@ -650,8 +691,10 @@ export class MuralClient {
         throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'murals:read' scope and re-authenticate.`);
       }
 
-      const response = await this.makeAuthenticatedRequest<MuralWidget>(`/murals/${encodeURIComponent(muralId)}/widgets/${encodeURIComponent(widgetId)}`);
-      return response;
+      const response = await this.makeAuthenticatedRequest<any>(`/murals/${encodeURIComponent(muralId)}/widgets/${encodeURIComponent(widgetId)}`);
+      // The single-widget endpoint wraps the widget in a `value` envelope, like
+      // the other endpoints; unwrap it so callers get the widget directly.
+      return response.value || response;
     } catch (error) {
       console.error(`Failed to fetch widget ${widgetId} from mural ${muralId}:`, error);
       throw error;

@@ -7,9 +7,24 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 
+import { jsonError, jsonResult } from './mcp-format.js';
 import { MuralClient } from './mural-client.js';
+import {
+  projectBoards,
+  projectRooms,
+  projectTemplates,
+  projectWidgets,
+  projectWorkspaces,
+  toCompactBoard,
+  toCompactRoom,
+  toCompactWidget,
+  toCompactWorkspace,
+} from './projections.js';
 
 const REQUIRED_ENV_VARS = ['MURAL_CLIENT_ID', 'MURAL_CLIENT_SECRET'] as const;
+
+// Shared Zod field for the `verbose` escape hatch exposed by every read tool.
+const verboseFlag = z.boolean().optional().default(false);
 
 function validateEnvironment(): { clientId: string; clientSecret: string; redirectUri?: string } {
   const clientId = process.env.MURAL_CLIENT_ID;
@@ -56,7 +71,8 @@ async function main() {
       tools: [
         {
           name: 'list-workspaces',
-          description: 'List all workspaces the authenticated user has access to',
+          description:
+            'List all workspaces the authenticated user has access to. Compact view keeps: id, name. Pass verbose=true for the full raw objects (description, image, locked, suspended, createdOn, ...).',
           inputSchema: {
             type: 'object',
             properties: {
@@ -71,19 +87,28 @@ async function main() {
                 description: 'Number of workspaces to skip for pagination (optional)',
                 minimum: 0,
               },
+              verbose: {
+                type: 'boolean',
+                description: 'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
+              },
             },
             additionalProperties: false,
           },
         },
         {
           name: 'get-workspace',
-          description: 'Get detailed information about a specific workspace',
+          description:
+            'Get detailed information about a specific workspace. Compact view keeps: id, name. Pass verbose=true for the full raw object (description, image, locked, suspended, createdOn, ...).',
           inputSchema: {
             type: 'object',
             properties: {
               workspaceId: {
                 type: 'string',
                 description: 'The unique identifier of the workspace',
+              },
+              verbose: {
+                type: 'boolean',
+                description: 'If true, return the full raw object instead of the compact view (optional, defaults to false)',
               },
             },
             required: ['workspaceId'],
@@ -128,13 +153,18 @@ async function main() {
         },
         {
           name: 'list-workspace-boards',
-          description: 'List all boards (murals) within a specific workspace',
+          description:
+            'List all boards (murals) within a specific workspace. Compact view keeps: id, title, status, roomId, workspaceId, infinite, updatedOn, _canvasLink. Pass verbose=true for the full raw objects (thumbnailUrl, sharing/visitor links, state, createdBy, ...).',
           inputSchema: {
             type: 'object',
             properties: {
               workspaceId: {
                 type: 'string',
                 description: 'The unique identifier of the workspace',
+              },
+              verbose: {
+                type: 'boolean',
+                description: 'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
               },
             },
             required: ['workspaceId'],
@@ -143,13 +173,18 @@ async function main() {
         },
         {
           name: 'list-room-boards',
-          description: 'List all boards (murals) within a specific room',
+          description:
+            'List all boards (murals) within a specific room. Compact view keeps: id, title, status, roomId, workspaceId, infinite, updatedOn, _canvasLink. Pass verbose=true for the full raw objects (thumbnailUrl, sharing/visitor links, state, createdBy, ...).',
           inputSchema: {
             type: 'object',
             properties: {
               roomId: {
                 type: 'string',
                 description: 'The unique identifier of the room',
+              },
+              verbose: {
+                type: 'boolean',
+                description: 'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
               },
             },
             required: ['roomId'],
@@ -158,7 +193,8 @@ async function main() {
         },
         {
           name: 'list-workspace-rooms',
-          description: 'List all rooms within a specific workspace (use a room id with list-room-boards). Returns all pages.',
+          description:
+            'List all rooms within a specific workspace (use a room id with list-room-boards). Returns all pages. Compact view keeps: id, name, type, workspaceId. Pass verbose=true for the full raw objects (confidential, isMember, description, favorite, createdBy, ...).',
           inputSchema: {
             type: 'object',
             properties: {
@@ -170,6 +206,10 @@ async function main() {
                 type: 'boolean',
                 description: 'If true, list only open (discoverable) rooms instead of all rooms (optional, defaults to false)',
               },
+              verbose: {
+                type: 'boolean',
+                description: 'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
+              },
             },
             required: ['workspaceId'],
             additionalProperties: false,
@@ -177,7 +217,8 @@ async function main() {
         },
         {
           name: 'list-workspace-templates',
-          description: "List a workspace's templates (default + custom), or search them by name. Returns all pages.",
+          description:
+            "List a workspace's templates (default + custom), or search them by name. Returns all pages. Compact view keeps: id, name, description, type. Pass verbose=true for the full raw objects (thumbUrl, viewLink, createdBy, updatedOn, ...).",
           inputSchema: {
             type: 'object',
             properties: {
@@ -192,6 +233,10 @@ async function main() {
               withoutDefault: {
                 type: 'boolean',
                 description: 'If true, exclude Mural default templates and return only custom ones (optional, ignored when searchQuery is set)',
+              },
+              verbose: {
+                type: 'boolean',
+                description: 'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
               },
             },
             required: ['workspaceId'],
@@ -346,13 +391,18 @@ async function main() {
         },
         {
           name: 'get-board',
-          description: 'Get detailed information about a specific board (mural)',
+          description:
+            'Get detailed information about a specific board (mural). Compact view keeps: id, title, status, roomId, workspaceId, infinite, updatedOn, _canvasLink. Pass verbose=true for the full raw object (thumbnailUrl, sharing/visitor links, state, createdBy, ...).',
           inputSchema: {
             type: 'object',
             properties: {
               boardId: {
                 type: 'string',
                 description: 'The unique identifier of the board/mural',
+              },
+              verbose: {
+                type: 'boolean',
+                description: 'If true, return the full raw object instead of the compact view (optional, defaults to false)',
               },
             },
             required: ['boardId'],
@@ -371,13 +421,18 @@ async function main() {
         // Content reading tools
         {
           name: 'get-mural-widgets',
-          description: 'Get all widgets from a mural',
+          description:
+            'Get all widgets from a mural. Compact view keeps: id, type, x, y, width, height, parentId plus per-type content (text, shape, backgroundColor, title, url, filename, points, ...). Pass verbose=true for the full raw widget objects (full style, rotation, authorship, flags, ...).',
           inputSchema: {
             type: 'object',
             properties: {
               muralId: {
                 type: 'string',
                 description: 'The unique identifier of the mural',
+              },
+              verbose: {
+                type: 'boolean',
+                description: 'If true, return the full raw widget objects instead of the compact view (optional, defaults to false)',
               },
             },
             required: ['muralId'],
@@ -386,7 +441,8 @@ async function main() {
         },
         {
           name: 'get-mural-widget',
-          description: 'Get details of a specific widget by its ID (requires both the mural id and the widget id)',
+          description:
+            'Get details of a specific widget by its ID (requires both the mural id and the widget id). Compact view keeps: id, type, x, y, width, height, parentId plus per-type content (text, shape, backgroundColor, title, url, filename, points, ...). Pass verbose=true for the full raw widget object (full style, rotation, authorship, flags, ...).',
           inputSchema: {
             type: 'object',
             properties: {
@@ -397,6 +453,10 @@ async function main() {
               widgetId: {
                 type: 'string',
                 description: 'The unique identifier of the widget',
+              },
+              verbose: {
+                type: 'boolean',
+                description: 'If true, return the full raw widget object instead of the compact view (optional, defaults to false)',
               },
             },
             required: ['muralId', 'widgetId'],
@@ -770,218 +830,95 @@ async function main() {
           const schema = z.object({
             limit: z.number().min(1).max(100).optional(),
             offset: z.number().min(0).optional(),
+            verbose: verboseFlag,
           });
 
-          const { limit, offset } = schema.parse(args || {});
+          const { limit, offset, verbose } = schema.parse(args || {});
           const workspaces = await muralClient.getWorkspaces(limit, offset);
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    workspaces,
-                    count: workspaces.length,
-                    message: workspaces.length === 0 ? 'No workspaces found' : `Found ${workspaces.length} workspace${workspaces.length === 1 ? '' : 's'}`,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          return jsonResult({ workspaces: verbose ? workspaces : projectWorkspaces(workspaces), count: workspaces.length });
         }
 
         case 'get-workspace': {
           const schema = z.object({
             workspaceId: z.string().min(1),
+            verbose: verboseFlag,
           });
 
-          const { workspaceId } = schema.parse(args);
+          const { workspaceId, verbose } = schema.parse(args);
           const workspace = await muralClient.getWorkspace(workspaceId);
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(workspace, null, 2),
-              },
-            ],
-          };
+          return jsonResult({ workspace: verbose ? workspace : toCompactWorkspace(workspace) });
         }
 
         case 'test-connection': {
           const isConnected = await muralClient.testConnection();
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    connected: isConnected,
-                    message: isConnected ? 'Successfully connected to Mural API' : 'Failed to connect to Mural API',
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          return jsonResult({
+            connected: isConnected,
+            message: isConnected ? 'Successfully connected to Mural API' : 'Failed to connect to Mural API',
+          });
         }
 
         case 'clear-auth': {
           await muralClient.clearAuthentication();
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    message: 'Authentication tokens cleared. You will need to re-authenticate on the next API call.',
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          return jsonResult({ message: 'Authentication tokens cleared. You will need to re-authenticate on the next API call.' });
         }
 
         case 'debug-api-response': {
           const debugInfo = await muralClient.debugWorkspacesAPI();
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    debug: debugInfo,
-                    message: 'Raw API response data for troubleshooting',
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          return jsonResult({ debug: debugInfo, message: 'Raw API response data for troubleshooting' });
         }
 
         case 'get-rate-limit-status': {
           const rateLimitStatus = await muralClient.getRateLimitStatus();
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    rateLimits: rateLimitStatus,
-                    message: 'Current rate limiting status',
-                    explanation: {
-                      user: `${rateLimitStatus.user.tokensRemaining}/${rateLimitStatus.user.capacity} requests available (${rateLimitStatus.user.refillRate}/second)`,
-                      app: `${rateLimitStatus.app.tokensRemaining}/${rateLimitStatus.app.capacity} requests available (${rateLimitStatus.app.refillRate}/minute)`,
-                    },
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          return jsonResult({
+            rateLimits: rateLimitStatus,
+            explanation: {
+              user: `${rateLimitStatus.user.tokensRemaining}/${rateLimitStatus.user.capacity} requests available (${rateLimitStatus.user.refillRate}/second)`,
+              app: `${rateLimitStatus.app.tokensRemaining}/${rateLimitStatus.app.capacity} requests available (${rateLimitStatus.app.refillRate}/minute)`,
+            },
+          });
         }
 
         case 'list-workspace-boards': {
           const schema = z.object({
             workspaceId: z.string().min(1),
+            verbose: verboseFlag,
           });
 
-          const { workspaceId } = schema.parse(args);
+          const { workspaceId, verbose } = schema.parse(args);
           const boards = await muralClient.getWorkspaceMurals(workspaceId);
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    boards,
-                    count: boards.length,
-                    workspaceId,
-                    message:
-                      boards.length === 0
-                        ? `No boards found in workspace ${workspaceId}`
-                        : `Found ${boards.length} board${boards.length === 1 ? '' : 's'} in workspace`,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          return jsonResult({ boards: verbose ? boards : projectBoards(boards), count: boards.length, workspaceId });
         }
 
         case 'list-room-boards': {
           const schema = z.object({
             roomId: z.string().min(1),
+            verbose: verboseFlag,
           });
 
-          const { roomId } = schema.parse(args);
+          const { roomId, verbose } = schema.parse(args);
           const boards = await muralClient.getRoomMurals(roomId);
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    boards,
-                    count: boards.length,
-                    roomId,
-                    message:
-                      boards.length === 0 ? `No boards found in room ${roomId}` : `Found ${boards.length} board${boards.length === 1 ? '' : 's'} in room`,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          return jsonResult({ boards: verbose ? boards : projectBoards(boards), count: boards.length, roomId });
         }
 
         case 'list-workspace-rooms': {
           const schema = z.object({
             workspaceId: z.string().min(1),
             openOnly: z.boolean().optional().default(false),
+            verbose: verboseFlag,
           });
 
-          const { workspaceId, openOnly } = schema.parse(args);
+          const { workspaceId, openOnly, verbose } = schema.parse(args);
           const rooms = await muralClient.getWorkspaceRooms(workspaceId, openOnly);
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    rooms,
-                    count: rooms.length,
-                    workspaceId,
-                    openOnly,
-                    message:
-                      rooms.length === 0
-                        ? `No rooms found in workspace ${workspaceId}`
-                        : `Found ${rooms.length} room${rooms.length === 1 ? '' : 's'} in workspace`,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          return jsonResult({ rooms: verbose ? rooms : projectRooms(rooms), count: rooms.length, workspaceId, openOnly });
         }
 
         case 'list-workspace-templates': {
@@ -989,32 +926,18 @@ async function main() {
             workspaceId: z.string().min(1),
             searchQuery: z.string().optional(),
             withoutDefault: z.boolean().optional().default(false),
+            verbose: verboseFlag,
           });
 
-          const { workspaceId, searchQuery, withoutDefault } = schema.parse(args);
+          const { workspaceId, searchQuery, withoutDefault, verbose } = schema.parse(args);
           const templates = await muralClient.getWorkspaceTemplates(workspaceId, searchQuery, withoutDefault);
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    templates,
-                    count: templates.length,
-                    workspaceId,
-                    searchQuery: searchQuery ?? null,
-                    message:
-                      templates.length === 0
-                        ? `No templates found in workspace ${workspaceId}${searchQuery ? ` matching "${searchQuery}"` : ''}`
-                        : `Found ${templates.length} template${templates.length === 1 ? '' : 's'}`,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          return jsonResult({
+            templates: verbose ? templates : projectTemplates(templates),
+            count: templates.length,
+            workspaceId,
+            searchQuery: searchQuery ?? null,
+          });
         }
 
         case 'create-mural-from-template': {
@@ -1028,21 +951,7 @@ async function main() {
           const { templateId, title, roomId, folderId } = schema.parse(args);
           const mural = await muralClient.createMuralFromTemplate(templateId, title, roomId, folderId);
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    mural,
-                    message: `Created mural "${title}" from template ${templateId} in room ${roomId}`,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          return jsonResult({ mural: toCompactBoard(mural), message: `Created mural "${title}" from template ${templateId} in room ${roomId}` });
         }
 
         case 'create-room': {
@@ -1057,21 +966,7 @@ async function main() {
           const { workspaceId, name, type, description, confidential } = schema.parse(args);
           const room = await muralClient.createRoom(workspaceId, name, type, description, confidential);
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    room,
-                    message: `Created ${type} room "${name}" in workspace ${workspaceId}`,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          return jsonResult({ room: toCompactRoom(room), message: `Created ${type} room "${name}" in workspace ${workspaceId}` });
         }
 
         case 'create-mural': {
@@ -1086,14 +981,7 @@ async function main() {
           });
           const { roomId, ...options } = schema.parse(args);
           const mural = await muralClient.createMural(roomId, options);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({ mural, message: `Created mural in room ${roomId}` }, null, 2),
-              },
-            ],
-          };
+          return jsonResult({ mural: toCompactBoard(mural), message: `Created mural in room ${roomId}` });
         }
 
         case 'update-mural': {
@@ -1115,14 +1003,7 @@ async function main() {
             throw new Error('update-mural requires at least one field to update');
           }
           const mural = await muralClient.updateMural(muralId, updates);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({ mural, message: `Updated mural ${muralId}` }, null, 2),
-              },
-            ],
-          };
+          return jsonResult({ mural: toCompactBoard(mural), message: `Updated mural ${muralId}` });
         }
 
         case 'delete-mural': {
@@ -1131,14 +1012,7 @@ async function main() {
           });
           const { muralId } = schema.parse(args);
           await muralClient.deleteMural(muralId);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({ message: `Deleted mural ${muralId}` }, null, 2),
-              },
-            ],
-          };
+          return jsonResult({ message: `Deleted mural ${muralId}` });
         }
 
         case 'duplicate-mural': {
@@ -1151,14 +1025,7 @@ async function main() {
           });
           const { muralId, roomId, title, ...options } = schema.parse(args);
           const mural = await muralClient.duplicateMural(muralId, roomId, title, options);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({ mural, message: `Duplicated mural ${muralId} into room ${roomId}` }, null, 2),
-              },
-            ],
-          };
+          return jsonResult({ mural: toCompactBoard(mural), message: `Duplicated mural ${muralId} into room ${roomId}` });
         }
 
         case 'export-mural': {
@@ -1168,32 +1035,19 @@ async function main() {
           });
           const { muralId, downloadFormat } = schema.parse(args);
           const result = await muralClient.exportMural(muralId, downloadFormat);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({ export: result, message: `Exported mural ${muralId} as ${downloadFormat}` }, null, 2),
-              },
-            ],
-          };
+          return jsonResult({ export: result, message: `Exported mural ${muralId} as ${downloadFormat}` });
         }
 
         case 'get-board': {
           const schema = z.object({
             boardId: z.string().min(1),
+            verbose: verboseFlag,
           });
 
-          const { boardId } = schema.parse(args);
+          const { boardId, verbose } = schema.parse(args);
           const board = await muralClient.getMural(boardId);
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(board, null, 2),
-              },
-            ],
-          };
+          return jsonResult({ board: verbose ? board : toCompactBoard(board) });
         }
 
         case 'check-user-scopes': {
@@ -1205,124 +1059,49 @@ async function main() {
             user = await muralClient.getCurrentUser().catch(() => null);
           }
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    user: user
-                      ? { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email }
-                      : 'User info unavailable (requires identity:read scope)',
-                    scopes,
-                    scopeCount: scopes.length,
-                    message:
-                      scopes.length === 0
-                        ? 'No OAuth scopes available. Please re-authenticate or check your Mural app configuration.'
-                        : `User has ${scopes.length} OAuth scope${scopes.length === 1 ? '' : 's'}`,
-                    recommendations: {
-                      'workspaces:read': scopes.includes('workspaces:read')
-                        ? 'Required for listing workspaces (✓ available)'
-                        : 'Required for listing workspaces (✗ missing)',
-                      'rooms:read': scopes.includes('rooms:read') ? 'Required for listing rooms (✓ available)' : 'Required for listing rooms (✗ missing)',
-                      'rooms:write': scopes.includes('rooms:write')
-                        ? 'Required for creating/modifying rooms (✓ available)'
-                        : 'Required for creating/modifying rooms (✗ missing)',
-                      'murals:read': scopes.includes('murals:read')
-                        ? 'Required for reading boards/murals (✓ available)'
-                        : 'Required for reading boards/murals (✗ missing)',
-                      'murals:write': scopes.includes('murals:write')
-                        ? 'Required for creating/modifying boards/murals (✓ available)'
-                        : 'Required for creating/modifying boards/murals (✗ missing)',
-                      'templates:read': scopes.includes('templates:read')
-                        ? 'Required for reading templates (✓ available)'
-                        : 'Required for reading templates (✗ missing)',
-                      'templates:write': scopes.includes('templates:write')
-                        ? 'Required for creating/modifying templates (✓ available)'
-                        : 'Required for creating/modifying templates (✗ missing)',
-                      'identity:read': scopes.includes('identity:read') ? 'Required for user info (✓ available)' : 'Required for user info (✗ missing)',
-                    },
-                    nextSteps:
-                      scopes.length === 0
-                        ? ['Run clear-auth tool', 'Update your Mural app to include all required scopes', 'Re-authenticate when prompted']
-                        : scopes.includes('murals:read') &&
-                            scopes.includes('murals:write') &&
-                            scopes.includes('workspaces:read') &&
-                            scopes.includes('rooms:read') &&
-                            scopes.includes('rooms:write') &&
-                            scopes.includes('templates:read')
-                          ? ['You have comprehensive scopes for full workspace/room/board/template operations']
-                          : [
-                              'Add missing scopes to your Mural app: workspaces:read, rooms:read, rooms:write, murals:read, murals:write, templates:read, templates:write, identity:read',
-                              'Run clear-auth tool',
-                              'Re-authenticate to get new scopes',
-                            ],
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          const expectedScopes = [
+            'workspaces:read',
+            'rooms:read',
+            'rooms:write',
+            'murals:read',
+            'murals:write',
+            'templates:read',
+            'templates:write',
+            'identity:read',
+          ];
+          const missing = expectedScopes.filter(scope => !scopes.includes(scope));
+
+          return jsonResult({
+            user: user ? { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email } : null,
+            scopes,
+            missing,
+          });
         }
 
         // Content reading tools
         case 'get-mural-widgets': {
           const schema = z.object({
             muralId: z.string().min(1),
+            verbose: verboseFlag,
           });
 
-          const { muralId } = schema.parse(args);
+          const { muralId, verbose } = schema.parse(args);
           const widgets = await muralClient.getMuralWidgets(muralId);
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    widgets,
-                    count: widgets.length,
-                    muralId,
-                    message:
-                      widgets.length === 0
-                        ? `No widgets found in mural ${muralId}`
-                        : `Found ${widgets.length} widget${widgets.length === 1 ? '' : 's'} in mural`,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          return jsonResult({ widgets: verbose ? widgets : projectWidgets(widgets), count: widgets.length, muralId });
         }
 
         case 'get-mural-widget': {
           const schema = z.object({
             muralId: z.string().min(1),
             widgetId: z.string().min(1),
+            verbose: verboseFlag,
           });
 
-          const { muralId, widgetId } = schema.parse(args);
+          const { muralId, widgetId, verbose } = schema.parse(args);
           const widget = await muralClient.getMuralWidget(muralId, widgetId);
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    widget,
-                    muralId,
-                    widgetId,
-                    message: `Widget details retrieved successfully`,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          return jsonResult({ widget: verbose ? widget : toCompactWidget(widget), muralId, widgetId });
         }
 
         // Widget creation tools
@@ -1399,23 +1178,12 @@ async function main() {
 
           const createdWidgets = await muralClient.createStickyNotes(muralId, stickyNotesWithShape);
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    widgets: createdWidgets,
-                    count: createdWidgets.length,
-                    muralId,
-                    message: `Successfully created ${createdWidgets.length} sticky note${createdWidgets.length === 1 ? '' : 's'} in mural ${muralId}`,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          return jsonResult({
+            widgets: projectWidgets(createdWidgets),
+            count: createdWidgets.length,
+            muralId,
+            message: `Successfully created ${createdWidgets.length} sticky note${createdWidgets.length === 1 ? '' : 's'} in mural ${muralId}`,
+          });
         }
 
         // PATCH/Update tool handlers
@@ -1442,23 +1210,12 @@ async function main() {
           const { muralId, widgetId, updates } = schema.parse(args);
           const updatedWidget = await muralClient.updateStickyNote(muralId, widgetId, updates);
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    widget: updatedWidget,
-                    muralId,
-                    widgetId,
-                    message: `Successfully updated sticky note ${widgetId} in mural ${muralId}`,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          return jsonResult({
+            widget: toCompactWidget(updatedWidget),
+            muralId,
+            widgetId,
+            message: `Successfully updated sticky note ${widgetId} in mural ${muralId}`,
+          });
         }
 
         case 'delete-widget': {
@@ -1468,23 +1225,7 @@ async function main() {
           });
           const { muralId, widgetId } = schema.parse(args);
           await muralClient.deleteWidget(muralId, widgetId);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    muralId,
-                    widgetId,
-                    deleted: true,
-                    message: `Successfully deleted widget ${widgetId} from mural ${muralId}`,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          return jsonResult({ muralId, widgetId, deleted: true, message: `Successfully deleted widget ${widgetId} from mural ${muralId}` });
         }
 
         case 'create-shapes': {
@@ -1494,23 +1235,13 @@ async function main() {
           });
           const { muralId, shapes } = schema.parse(args);
           const createdWidgets = await muralClient.createShapes(muralId, shapes);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    widgets: createdWidgets,
-                    count: Array.isArray(createdWidgets) ? createdWidgets.length : 0,
-                    muralId,
-                    message: `Created ${Array.isArray(createdWidgets) ? createdWidgets.length : 0} shape widget(s)`,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          const count = Array.isArray(createdWidgets) ? createdWidgets.length : 0;
+          return jsonResult({
+            widgets: Array.isArray(createdWidgets) ? projectWidgets(createdWidgets) : createdWidgets,
+            count,
+            muralId,
+            message: `Created ${count} shape widget(s)`,
+          });
         }
 
         case 'create-arrows': {
@@ -1520,23 +1251,13 @@ async function main() {
           });
           const { muralId, arrows } = schema.parse(args);
           const createdWidgets = await muralClient.createArrows(muralId, arrows);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    widgets: createdWidgets,
-                    count: Array.isArray(createdWidgets) ? createdWidgets.length : 0,
-                    muralId,
-                    message: `Created ${Array.isArray(createdWidgets) ? createdWidgets.length : 0} arrow widget(s)`,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          const count = Array.isArray(createdWidgets) ? createdWidgets.length : 0;
+          return jsonResult({
+            widgets: Array.isArray(createdWidgets) ? projectWidgets(createdWidgets) : createdWidgets,
+            count,
+            muralId,
+            message: `Created ${count} arrow widget(s)`,
+          });
         }
 
         case 'create-text-boxes': {
@@ -1546,23 +1267,13 @@ async function main() {
           });
           const { muralId, textBoxes } = schema.parse(args);
           const createdWidgets = await muralClient.createTextBoxes(muralId, textBoxes);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    widgets: createdWidgets,
-                    count: Array.isArray(createdWidgets) ? createdWidgets.length : 0,
-                    muralId,
-                    message: `Created ${Array.isArray(createdWidgets) ? createdWidgets.length : 0} text-box widget(s)`,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          const count = Array.isArray(createdWidgets) ? createdWidgets.length : 0;
+          return jsonResult({
+            widgets: Array.isArray(createdWidgets) ? projectWidgets(createdWidgets) : createdWidgets,
+            count,
+            muralId,
+            message: `Created ${count} text-box widget(s)`,
+          });
         }
 
         case 'create-titles': {
@@ -1572,23 +1283,13 @@ async function main() {
           });
           const { muralId, titles } = schema.parse(args);
           const createdWidgets = await muralClient.createTitles(muralId, titles);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    widgets: createdWidgets,
-                    count: Array.isArray(createdWidgets) ? createdWidgets.length : 0,
-                    muralId,
-                    message: `Created ${Array.isArray(createdWidgets) ? createdWidgets.length : 0} title widget(s)`,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          const count = Array.isArray(createdWidgets) ? createdWidgets.length : 0;
+          return jsonResult({
+            widgets: Array.isArray(createdWidgets) ? projectWidgets(createdWidgets) : createdWidgets,
+            count,
+            muralId,
+            message: `Created ${count} title widget(s)`,
+          });
         }
 
         case 'create-areas': {
@@ -1598,23 +1299,13 @@ async function main() {
           });
           const { muralId, areas } = schema.parse(args);
           const createdWidgets = await muralClient.createAreas(muralId, areas);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    widgets: createdWidgets,
-                    count: Array.isArray(createdWidgets) ? createdWidgets.length : 0,
-                    muralId,
-                    message: `Created ${Array.isArray(createdWidgets) ? createdWidgets.length : 0} area widget(s)`,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          const count = Array.isArray(createdWidgets) ? createdWidgets.length : 0;
+          return jsonResult({
+            widgets: Array.isArray(createdWidgets) ? projectWidgets(createdWidgets) : createdWidgets,
+            count,
+            muralId,
+            message: `Created ${count} area widget(s)`,
+          });
         }
 
         case 'update-widget': {
@@ -1646,49 +1337,14 @@ async function main() {
               updated = await muralClient.updateArea(muralId, widgetId, updates);
               break;
           }
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    widget: updated,
-                    muralId,
-                    widgetId,
-                    kind,
-                    message: `Updated ${kind} ${widgetId}`,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
+          return jsonResult({ widget: toCompactWidget(updated), muralId, widgetId, kind, message: `Updated ${kind} ${widgetId}` });
         }
 
         default:
           throw new Error(`Unknown tool: ${name}`);
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                error: true,
-                message: errorMessage,
-                tool: name,
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-        isError: true,
-      };
+      return jsonError(error, name);
     }
   });
 
