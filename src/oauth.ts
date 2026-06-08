@@ -9,6 +9,9 @@ import type { AuthorizationParams, OAuthError, OAuthTokens, PKCEChallenge, Refre
 
 const MURAL_OAUTH_BASE = 'https://app.mural.co/api/public/v1/authorization/oauth2';
 const TOKEN_FILE_PATH = path.join(os.homedir(), '.mural-mcp-tokens.json');
+// Refresh slightly before the real expiry so a token that would lapse mid-request
+// is renewed proactively instead of failing the next API call with a 401.
+const EXPIRY_MARGIN_MS = 30_000;
 
 export class MuralOAuth {
   private clientId: string;
@@ -117,13 +120,19 @@ export class MuralOAuth {
 
     const tokens = data as OAuthTokens;
     tokens.expires_at = Date.now() + tokens.expires_in * 1000;
+    // Mural's refresh response may omit refresh_token; keep the previous one so
+    // we don't lose refresh capability and force a full interactive re-auth.
+    tokens.refresh_token ??= refreshToken;
 
     return tokens;
   }
 
   private async saveTokens(tokens: OAuthTokens): Promise<void> {
     try {
-      await fs.writeFile(TOKEN_FILE_PATH, JSON.stringify(tokens, null, 2));
+      await fs.writeFile(TOKEN_FILE_PATH, JSON.stringify(tokens, null, 2), { mode: 0o600 });
+      // writeFile only applies `mode` when creating the file; chmod also tightens
+      // a file left world-readable (0o644) by an earlier version of this server.
+      await fs.chmod(TOKEN_FILE_PATH, 0o600);
     } catch (error) {
       console.error('Failed to save tokens:', error);
       throw new Error('Failed to save authentication tokens');
@@ -157,7 +166,7 @@ export class MuralOAuth {
           const state = url.searchParams.get('state');
           const error = url.searchParams.get('error');
 
-          console.log(`Callback received - Code: ${code ? 'present' : 'missing'}, State: ${state}, Expected: ${expectedState}`);
+          console.error(`Callback received - Code: ${code ? 'present' : 'missing'}, State: ${state}, Expected: ${expectedState}`);
 
           if (error) {
             res.writeHead(400, { 'Content-Type': 'text/html' });
@@ -199,7 +208,7 @@ export class MuralOAuth {
       });
 
       server.listen(3000, () => {
-        console.log('OAuth callback server started on http://localhost:3000');
+        console.error('OAuth callback server started on http://localhost:3000');
       });
 
       server.on('error', error => {
@@ -244,7 +253,7 @@ export class MuralOAuth {
   private async performAuthentication(): Promise<OAuthTokens> {
     // Check for existing valid tokens
     const existingTokens = await this.loadTokens();
-    if (existingTokens && existingTokens.expires_at && existingTokens.expires_at > Date.now()) {
+    if (existingTokens && existingTokens.expires_at && existingTokens.expires_at > Date.now() + EXPIRY_MARGIN_MS) {
       return existingTokens;
     }
 
@@ -264,9 +273,9 @@ export class MuralOAuth {
     const state = randomBytes(16).toString('hex');
     const authUrl = this.generateAuthorizationUrl(pkce, state);
 
-    console.log('Please open the following URL in your browser to authenticate:');
-    console.log(authUrl);
-    console.log('\nWaiting for authentication callback...');
+    console.error('Please open the following URL in your browser to authenticate:');
+    console.error(authUrl);
+    console.error('\nWaiting for authentication callback...');
 
     // Start callback server and wait for response
     const callbackPromise = this.startCallbackServer(state);
@@ -294,7 +303,7 @@ export class MuralOAuth {
     const tokens = await this.exchangeCodeForTokens(code, pkce.codeVerifier);
     await this.saveTokens(tokens);
 
-    console.log('Authentication successful!');
+    console.error('Authentication successful!');
     return tokens;
   }
 
@@ -310,7 +319,7 @@ export class MuralOAuth {
   async clearTokens(): Promise<void> {
     try {
       await fs.unlink(TOKEN_FILE_PATH);
-      console.log('Authentication tokens cleared');
+      console.error('Authentication tokens cleared');
     } catch (error) {
       // File doesn't exist, which is fine
     }
