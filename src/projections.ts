@@ -66,9 +66,9 @@ export interface CompactWidget {
   backgroundColor?: string;
 }
 
-/** Spread a key into an object only when its value is defined. */
+/** Spread a key into an object only when its value is present (skips null/undefined/empty string). */
 function opt<T>(key: string, value: T): Record<string, T> | Record<string, never> {
-  return value === undefined || value === null ? {} : { [key]: value };
+  return value === undefined || value === null || value === '' ? {} : { [key]: value };
 }
 
 export function toCompactWorkspace(raw: any): CompactWorkspace {
@@ -152,7 +152,10 @@ export function toCompactWidget(raw: any): CompactWidget {
         ...opt('endWidget', raw.endWidget),
       };
     default:
-      return base;
+      // Unknown/unmodeled widget type: keep position plus any human content it
+      // carries (text/title), so a type we haven't enumerated never loses its
+      // content silently. Use verbose to get everything else.
+      return { ...base, ...opt('text', raw.text), ...opt('title', raw.title) };
   }
 }
 

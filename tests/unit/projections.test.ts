@@ -157,9 +157,14 @@ describe('projections', () => {
       });
     });
 
-    it('falls back to id/type/position for unknown widget types', () => {
-      const raw = { id: 'w6', type: 'comment', x: 5, y: 6, foo: 'bar', text: 'ignored-by-fallback' };
-      expect(toCompactWidget(raw)).toEqual({ id: 'w6', type: 'comment', x: 5, y: 6 });
+    it('preserves text/title of unknown widget types but drops unmodeled fields', () => {
+      const raw = { id: 'w6', type: 'comment', x: 5, y: 6, foo: 'bar', text: 'a comment', title: 'label' };
+      expect(toCompactWidget(raw)).toEqual({ id: 'w6', type: 'comment', x: 5, y: 6, text: 'a comment', title: 'label' });
+    });
+
+    it('keeps the icon untouched of content it does not carry (fallback, no text/title)', () => {
+      const raw = { id: 'ic', type: 'icon', x: 1, y: 2, width: 104, height: 104, name: '321658', title: '', style: { color: '#000' } };
+      expect(toCompactWidget(raw)).toEqual({ id: 'ic', type: 'icon', x: 1, y: 2, width: 104, height: 104 });
     });
 
     it('projects a list of widgets', () => {
