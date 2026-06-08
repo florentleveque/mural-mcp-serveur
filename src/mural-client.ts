@@ -652,10 +652,7 @@ export class MuralClient {
 
       return {
         request: debugInfo,
-        response: {
-          value: responseData,
-          raw: responseData,
-        },
+        response: responseData,
         success: response.ok,
       };
     } catch (error) {

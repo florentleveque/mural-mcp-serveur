@@ -8,10 +8,10 @@
 
 import { MuralApiError } from './mural-client.js';
 
-export interface ToolResponse {
+export type ToolResponse = {
   content: { type: 'text'; text: string }[];
   isError?: boolean;
-}
+};
 
 /** Wrap a payload as a compact (non-pretty-printed) MCP text result. */
 export function jsonResult(payload: unknown): ToolResponse {
