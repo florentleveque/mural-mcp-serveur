@@ -117,9 +117,12 @@ export function toCompactWidget(raw: any): CompactWidget {
     ...opt('parentId', raw.parentId),
   };
 
+  // Text-bearing widgets. Note the Mural API names plain text widgets "text"
+  // (not "text box"), so both are handled here.
   switch (raw.type) {
     case 'sticky note':
     case 'text box':
+    case 'text':
     case 'title':
       return {
         ...base,

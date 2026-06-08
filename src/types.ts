@@ -253,8 +253,10 @@ export interface StickyNoteWidget extends MuralWidgetBase {
   shape?: string;
 }
 
+// The API returns plain text widgets with type 'text' (the create endpoint
+// uses the 'text-box' kind, but the read response type is 'text').
 export interface TextBoxWidget extends MuralWidgetBase {
-  type: 'text box';
+  type: 'text';
   text: string;
 }
 

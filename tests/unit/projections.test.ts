@@ -126,6 +126,11 @@ describe('projections', () => {
       });
     });
 
+    it('keeps the text of a "text" widget (API uses type "text", not "text box")', () => {
+      const raw = { id: 'wt', type: 'text', x: 0, y: 0, width: 100, text: '<div><b>Titre</b></div>', style: { fontSize: 77 } };
+      expect(toCompactWidget(raw)).toEqual({ id: 'wt', type: 'text', x: 0, y: 0, width: 100, text: '<div><b>Titre</b></div>' });
+    });
+
     it('keeps shape-specific fields', () => {
       const raw = { id: 'w2', type: 'shape', x: 1, y: 2, shape: 'circle', text: 'inside', style: { backgroundColor: '#fff' } };
       expect(toCompactWidget(raw)).toEqual({ id: 'w2', type: 'shape', x: 1, y: 2, shape: 'circle', text: 'inside', backgroundColor: '#fff' });
