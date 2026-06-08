@@ -263,6 +263,22 @@ describe('MuralClient', () => {
     });
   });
 
+  describe('getMuralWidget (single)', () => {
+    it('unwraps the value envelope returned by the single-widget endpoint', async () => {
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { value: { id: 'w1', type: 'sticky note' } }));
+
+      const widget = await createClient().getMuralWidget('m1', 'w1');
+
+      expect(widget).toEqual({ id: 'w1', type: 'sticky note' });
+    });
+
+    it('returns the body as-is when there is no value envelope', async () => {
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { id: 'w1', type: 'shape' }));
+
+      await expect(createClient().getMuralWidget('m1', 'w1')).resolves.toEqual({ id: 'w1', type: 'shape' });
+    });
+  });
+
   describe('representative endpoint methods', () => {
     it('getWorkspaces unwraps the value array', async () => {
       fetchMock.mockResolvedValue(mockFetchResponse(200, { value: [{ id: 'ws1' }] }));
