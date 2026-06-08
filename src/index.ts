@@ -390,6 +390,35 @@ async function main() {
           },
         },
         {
+          name: 'get-export-status',
+          description:
+            'Check the status of an async mural export and get the download URL once ready (requires murals:read). Poll this with the exportId returned by export-mural; the response includes ready:true and the URL when the file is available',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string', description: 'The unique identifier of the mural being exported' },
+              exportId: { type: 'string', description: 'The export job identifier returned by export-mural' },
+            },
+            required: ['muralId', 'exportId'],
+            additionalProperties: false,
+          },
+        },
+        {
+          name: 'download-export',
+          description:
+            'Download a ready mural export to a local file (requires murals:read). Resolves the export URL via the status endpoint then writes the file to outputPath. If the export is not ready yet, returns ready:false without writing — retry later',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string', description: 'The unique identifier of the mural being exported' },
+              exportId: { type: 'string', description: 'The export job identifier returned by export-mural' },
+              outputPath: { type: 'string', description: 'Absolute path of the local file to write the export to (parent directory is created if missing)' },
+            },
+            required: ['muralId', 'exportId', 'outputPath'],
+            additionalProperties: false,
+          },
+        },
+        {
           name: 'get-board',
           description:
             'Get detailed information about a specific board (mural). Compact view keeps: id, title, status, roomId, workspaceId, infinite, updatedOn, _canvasLink. Pass verbose=true for the full raw object (thumbnailUrl, sharing/visitor links, state, createdBy, ...).',
@@ -1035,7 +1064,37 @@ async function main() {
           });
           const { muralId, downloadFormat } = schema.parse(args);
           const result = await muralClient.exportMural(muralId, downloadFormat);
-          return jsonResult({ export: result, message: `Exported mural ${muralId} as ${downloadFormat}` });
+          return jsonResult({
+            export: result,
+            message: `Started export of mural ${muralId} as ${downloadFormat}. Poll get-export-status with the returned exportId, then download-export once ready`,
+          });
+        }
+
+        case 'get-export-status': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            exportId: z.string().min(1),
+          });
+          const { muralId, exportId } = schema.parse(args);
+          const status = await muralClient.getExportStatus(muralId, exportId);
+          const ready = typeof status?.url === 'string';
+          return jsonResult({ status, ready, message: ready ? `Export ${exportId} is ready` : `Export ${exportId} is still processing` });
+        }
+
+        case 'download-export': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            exportId: z.string().min(1),
+            outputPath: z.string().min(1),
+          });
+          const { muralId, exportId, outputPath } = schema.parse(args);
+          const result = await muralClient.downloadExport(muralId, exportId, outputPath);
+          return jsonResult({
+            ...result,
+            muralId,
+            exportId,
+            message: result.ready ? `Saved export to ${result.path}` : `Export ${exportId} not ready yet — retry later`,
+          });
         }
 
         case 'get-board': {

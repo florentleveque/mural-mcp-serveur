@@ -32,7 +32,7 @@ This is a Model Context Protocol (MCP) server that provides integration with the
 
 1. **MCP Server** (`src/index.ts`) - Main entry point that:
    - Uses stdio transport for MCP communication
-   - Exposes ~30 tools spanning authentication/utilities, reads (workspaces, rooms, templates, boards, widgets) and writes (full CRUD on murals, room/widget creation) — see "MCP Tools Available" below
+   - Exposes ~30 tools spanning authentication/utilities, reads (workspaces, rooms, templates, boards, widgets) and writes (full CRUD on murals, async export + download, room/widget creation) — see "MCP Tools Available" below
    - Validates the required environment variables (`MURAL_CLIENT_ID`, `MURAL_CLIENT_SECRET`)
    - Uses Zod for input validation
    - Formats every tool response through `src/mcp-format.ts` (`jsonResult`/`jsonError`) and compacts read payloads through `src/projections.ts`
@@ -83,7 +83,7 @@ See `README.md` for the full per-tool description. Grouped overview:
 - **Workspaces**: `list-workspaces`, `get-workspace`
 - **Rooms**: `list-workspace-rooms`, `list-room-boards`, `create-room`
 - **Templates**: `list-workspace-templates`, `create-mural-from-template`
-- **Murals**: `list-workspace-boards`, `get-board`, `create-mural`, `update-mural`, `delete-mural`, `duplicate-mural`, `export-mural`
+- **Murals**: `list-workspace-boards`, `get-board`, `create-mural`, `update-mural`, `delete-mural`, `duplicate-mural`, `export-mural`, `get-export-status`, `download-export`
 - **Widgets**: `get-mural-widgets`, `get-mural-widget`, `create-sticky-notes`, `update-sticky-note`, `create-shapes`, `create-arrows`, `create-text-boxes`, `create-titles`, `create-areas`, `update-widget`, `delete-widget`
 
 Read tools return a compact projection by default (see `src/projections.ts`); pass `verbose: true` to get the full raw object.

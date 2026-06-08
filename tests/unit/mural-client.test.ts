@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MuralApiError, MuralClient } from '../../src/mural-client.js';
@@ -30,6 +31,14 @@ vi.mock('../../src/rate-limiter.js', () => ({
     consumeRequest = mocks.consumeRequest;
     getRateLimitStatus = mocks.getRateLimitStatus;
     reset = mocks.reset;
+  },
+}));
+
+// downloadExport writes the fetched export file to disk via fs/promises.
+vi.mock('fs/promises', () => ({
+  default: {
+    mkdir: vi.fn(),
+    writeFile: vi.fn(),
   },
 }));
 
@@ -308,6 +317,49 @@ describe('MuralClient', () => {
       const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
       expect(url).toBe('https://app.mural.co/api/public/v1/murals/m1/widgets/w1');
       expect(options.method).toBe('DELETE');
+    });
+  });
+
+  describe('export status & download', () => {
+    it('getExportStatus unwraps the value envelope and targets the exports endpoint', async () => {
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { value: { url: 'https://s3.example/export.pdf' } }));
+
+      const status = await createClient().getExportStatus('m1', 'e1');
+
+      expect(status).toEqual({ url: 'https://s3.example/export.pdf' });
+      expect(fetchMock.mock.calls[0]?.[0]).toBe('https://app.mural.co/api/public/v1/murals/m1/exports/e1');
+    });
+
+    it('getExportStatus returns a payload without url while the export is still processing', async () => {
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { value: {} }));
+
+      await expect(createClient().getExportStatus('m1', 'e1')).resolves.toEqual({});
+    });
+
+    it('downloadExport writes the file to outputPath when the export is ready', async () => {
+      fetchMock
+        .mockResolvedValueOnce(mockFetchResponse(200, { value: { url: 'https://s3.example/export.pdf' } }))
+        .mockResolvedValueOnce(new Response('PDF-BYTES', { status: 200 }));
+
+      const result = await createClient().downloadExport('m1', 'e1', '/tmp/out/export.pdf');
+
+      expect(result.ready).toBe(true);
+      expect(result.path).toBe('/tmp/out/export.pdf');
+      expect(vi.mocked(fs.mkdir)).toHaveBeenCalledWith('/tmp/out', { recursive: true });
+      expect(vi.mocked(fs.writeFile)).toHaveBeenCalledWith('/tmp/out/export.pdf', expect.any(Buffer));
+      // The signed URL is fetched raw, without the Bearer header used for Mural API calls.
+      const [, downloadOptions] = fetchMock.mock.calls[1] as [string, RequestInit | undefined];
+      expect(downloadOptions).toBeUndefined();
+    });
+
+    it('downloadExport does not download or write when the export is not ready yet', async () => {
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { value: {} }));
+
+      const result = await createClient().downloadExport('m1', 'e1', '/tmp/out/export.pdf');
+
+      expect(result.ready).toBe(false);
+      expect(fetchMock).toHaveBeenCalledTimes(1); // status only, no download attempt
+      expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled();
     });
   });
 
