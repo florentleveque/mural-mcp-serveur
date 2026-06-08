@@ -23,6 +23,9 @@ import {
 
 const REQUIRED_ENV_VARS = ['MURAL_CLIENT_ID', 'MURAL_CLIENT_SECRET'] as const;
 
+// Shared Zod field for the `verbose` escape hatch exposed by every read tool.
+const verboseFlag = z.boolean().optional().default(false);
+
 function validateEnvironment(): { clientId: string; clientSecret: string; redirectUri?: string } {
   const clientId = process.env.MURAL_CLIENT_ID;
   if (!clientId) {
@@ -827,7 +830,7 @@ async function main() {
           const schema = z.object({
             limit: z.number().min(1).max(100).optional(),
             offset: z.number().min(0).optional(),
-            verbose: z.boolean().optional().default(false),
+            verbose: verboseFlag,
           });
 
           const { limit, offset, verbose } = schema.parse(args || {});
@@ -839,7 +842,7 @@ async function main() {
         case 'get-workspace': {
           const schema = z.object({
             workspaceId: z.string().min(1),
-            verbose: z.boolean().optional().default(false),
+            verbose: verboseFlag,
           });
 
           const { workspaceId, verbose } = schema.parse(args);
@@ -884,7 +887,7 @@ async function main() {
         case 'list-workspace-boards': {
           const schema = z.object({
             workspaceId: z.string().min(1),
-            verbose: z.boolean().optional().default(false),
+            verbose: verboseFlag,
           });
 
           const { workspaceId, verbose } = schema.parse(args);
@@ -896,7 +899,7 @@ async function main() {
         case 'list-room-boards': {
           const schema = z.object({
             roomId: z.string().min(1),
-            verbose: z.boolean().optional().default(false),
+            verbose: verboseFlag,
           });
 
           const { roomId, verbose } = schema.parse(args);
@@ -909,7 +912,7 @@ async function main() {
           const schema = z.object({
             workspaceId: z.string().min(1),
             openOnly: z.boolean().optional().default(false),
-            verbose: z.boolean().optional().default(false),
+            verbose: verboseFlag,
           });
 
           const { workspaceId, openOnly, verbose } = schema.parse(args);
@@ -923,7 +926,7 @@ async function main() {
             workspaceId: z.string().min(1),
             searchQuery: z.string().optional(),
             withoutDefault: z.boolean().optional().default(false),
-            verbose: z.boolean().optional().default(false),
+            verbose: verboseFlag,
           });
 
           const { workspaceId, searchQuery, withoutDefault, verbose } = schema.parse(args);
@@ -1038,7 +1041,7 @@ async function main() {
         case 'get-board': {
           const schema = z.object({
             boardId: z.string().min(1),
-            verbose: z.boolean().optional().default(false),
+            verbose: verboseFlag,
           });
 
           const { boardId, verbose } = schema.parse(args);
@@ -1079,7 +1082,7 @@ async function main() {
         case 'get-mural-widgets': {
           const schema = z.object({
             muralId: z.string().min(1),
-            verbose: z.boolean().optional().default(false),
+            verbose: verboseFlag,
           });
 
           const { muralId, verbose } = schema.parse(args);
@@ -1092,7 +1095,7 @@ async function main() {
           const schema = z.object({
             muralId: z.string().min(1),
             widgetId: z.string().min(1),
-            verbose: z.boolean().optional().default(false),
+            verbose: verboseFlag,
           });
 
           const { muralId, widgetId, verbose } = schema.parse(args);
