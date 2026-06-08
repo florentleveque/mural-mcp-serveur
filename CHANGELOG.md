@@ -1,3 +1,13 @@
+## [1.3.0](https://github.com/florentleveque/mural-mcp-serveur/compare/v1.2.0...v1.3.0) (2026-06-08)
+
+### Features
+
+* **export:** add get-export-status and download-export tools ([eff481e](https://github.com/florentleveque/mural-mcp-serveur/commit/eff481eb9138c1fd4f5c50b79f1548012c40619c)), closes [#11](https://github.com/florentleveque/mural-mcp-serveur/issues/11)
+
+### Bug Fixes
+
+* **export:** treat 404 EXPORT_NOT_FOUND as still-processing in getExportStatus ([6de56af](https://github.com/florentleveque/mural-mcp-serveur/commit/6de56afb338af6805a4722d652c3cbcf41ad7e13))
+
 ## [1.2.0](https://github.com/florentleveque/mural-mcp-serveur/compare/v1.1.0...v1.2.0) (2026-06-08)
 
 ### Features
