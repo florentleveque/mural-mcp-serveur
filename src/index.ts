@@ -378,7 +378,8 @@ async function main() {
         },
         {
           name: 'export-mural',
-          description: 'Export a mural in a given format (requires murals:read). Accepted downloadFormat values are defined by the Mural API',
+          description:
+            'Start an ASYNCHRONOUS mural export (requires murals:read). Returns an exportId — it does NOT return the file. To get the file, call download-export with this exportId (retry until ready:true). Accepted downloadFormat values are defined by the Mural API',
           inputSchema: {
             type: 'object',
             properties: {
@@ -386,6 +387,21 @@ async function main() {
               downloadFormat: { type: 'string', description: 'The export format (e.g. pdf, png, zip — values defined by the Mural API)' },
             },
             required: ['muralId', 'downloadFormat'],
+            additionalProperties: false,
+          },
+        },
+        {
+          name: 'download-export',
+          description:
+            'Download a mural export to a local file (requires murals:read). Resolves the export URL itself then writes the file to outputPath. Single-shot: if the export is not ready yet it returns ready:false without writing. Normal usage: call this with the exportId returned by export-mural and, while it returns ready:false, wait a few seconds and call it again until ready:true',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              muralId: { type: 'string', description: 'The unique identifier of the mural being exported' },
+              exportId: { type: 'string', description: 'The export job identifier returned by export-mural' },
+              outputPath: { type: 'string', description: 'Absolute path of the local file to write the export to (parent directory is created if missing)' },
+            },
+            required: ['muralId', 'exportId', 'outputPath'],
             additionalProperties: false,
           },
         },
@@ -1035,7 +1051,26 @@ async function main() {
           });
           const { muralId, downloadFormat } = schema.parse(args);
           const result = await muralClient.exportMural(muralId, downloadFormat);
-          return jsonResult({ export: result, message: `Exported mural ${muralId} as ${downloadFormat}` });
+          return jsonResult({
+            export: result,
+            message: `Started export of mural ${muralId} as ${downloadFormat}. Call download-export with the returned exportId, retrying while it returns ready:false until ready:true`,
+          });
+        }
+
+        case 'download-export': {
+          const schema = z.object({
+            muralId: z.string().min(1),
+            exportId: z.string().min(1),
+            outputPath: z.string().min(1),
+          });
+          const { muralId, exportId, outputPath } = schema.parse(args);
+          const result = await muralClient.downloadExport(muralId, exportId, outputPath);
+          return jsonResult({
+            ...result,
+            muralId,
+            exportId,
+            message: result.ready ? `Saved export to ${result.path}` : `Export ${exportId} not ready yet — retry later`,
+          });
         }
 
         case 'get-board': {

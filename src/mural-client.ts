@@ -1,8 +1,12 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
 import { MuralOAuth } from './oauth.js';
 import { MuralRateLimiter } from './rate-limiter.js';
 import type {
   CreateStickyNoteRequest,
   MuralBoard,
+  MuralExportStatus,
   MuralRoom,
   MuralTemplate,
   MuralUser,
@@ -470,6 +474,51 @@ export class MuralClient {
       return response.value || response;
     } catch (error) {
       console.error(`Failed to export mural ${muralId}:`, error);
+      throw error;
+    }
+  }
+
+  async getExportStatus(muralId: string, exportId: string): Promise<MuralExportStatus> {
+    try {
+      const scopeCheck = await this.checkScope('murals:read');
+      if (!scopeCheck.hasScope) {
+        throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'murals:read' scope and re-authenticate.`);
+      }
+      const response = await this.makeAuthenticatedRequest<any>(`/murals/${encodeURIComponent(muralId)}/exports/${encodeURIComponent(exportId)}`);
+      return response.value || response;
+    } catch (error) {
+      // While the export job is still running, Mural answers 404 EXPORT_NOT_FOUND
+      // ("...or the process has not finished yet") rather than a 200 without a url.
+      // Surface that as "not ready yet" (no url) so callers can poll, instead of
+      // throwing. NB: a genuinely invalid mural/export id yields the same code,
+      // so callers must bound their polling.
+      if (error instanceof MuralApiError && error.status === 404 && error.errorCode === 'EXPORT_NOT_FOUND') {
+        return {};
+      }
+      console.error(`Failed to get export status for mural ${muralId} (export ${exportId}):`, error);
+      throw error;
+    }
+  }
+
+  async downloadExport(muralId: string, exportId: string, outputPath: string): Promise<{ ready: boolean; path?: string; status: MuralExportStatus }> {
+    try {
+      const status = await this.getExportStatus(muralId, exportId);
+      if (typeof status?.url !== 'string') {
+        // Export job not finished yet — leave the disk untouched so the caller can retry.
+        return { ready: false, status };
+      }
+      // The export URL is a signed third-party (S3) link: fetch it raw, without the
+      // Bearer header makeAuthenticatedRequest would inject and without JSON parsing.
+      const res = await fetch(status.url);
+      if (!res.ok) {
+        throw new MuralApiError(res.status, res.statusText, undefined, 'Failed to download export file');
+      }
+      const buffer = Buffer.from(await res.arrayBuffer());
+      await fs.mkdir(path.dirname(outputPath), { recursive: true });
+      await fs.writeFile(outputPath, buffer);
+      return { ready: true, path: outputPath, status };
+    } catch (error) {
+      console.error(`Failed to download export for mural ${muralId} (export ${exportId}):`, error);
       throw error;
     }
   }

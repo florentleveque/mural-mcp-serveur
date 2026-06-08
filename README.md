@@ -11,7 +11,7 @@ A Model Context Protocol (MCP) server that provides integration with the Mural v
 - **OAuth 2.0 Authentication**: Secure authentication with PKCE support
 - **Workspaces & Rooms**: list workspaces and rooms (incl. open rooms), create rooms
 - **Templates**: list/search a workspace's templates, create a mural from a template
-- **Murals**: full CRUD — create (blank or from template), read, update, delete, duplicate, export
+- **Murals**: full CRUD — create (blank or from template), read, update, delete, duplicate, export & download
 - **Widgets**: read, create and update sticky notes, shapes, arrows, text boxes, titles and areas; delete widgets
 - **Pagination**: list endpoints follow the API cursor to return all items
 - **Compact responses**: read tools return a trimmed projection of each object by default to save context; pass `verbose: true` for the full raw payload
@@ -52,7 +52,8 @@ A Model Context Protocol (MCP) server that provides integration with the Mural v
 - `update-mural`: Update a mural (title, status `active`/`archived`, dimensions, sharing…)
 - `delete-mural`: Permanently delete a mural (irreversible)
 - `duplicate-mural`: Duplicate a mural into a room
-- `export-mural`: Export a mural in a given format
+- `export-mural`: Start an async export of a mural in a given format (returns an `exportId`)
+- `download-export`: Download an export to a local file (`outputPath`) — resolves the URL itself; returns `ready:false` without writing if not ready yet, so call it again until ready
 
 **Widgets**
 

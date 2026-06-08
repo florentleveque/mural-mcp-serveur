@@ -130,6 +130,13 @@ export interface MuralBoard {
   visitorsSettings?: { link?: string; visitors?: string; workspaceMembers?: string } & Record<string, unknown>;
 }
 
+// Status payload of an async mural export job (GET /murals/{id}/exports/{exportId}).
+// `url` is present only once the export is ready; the exact pending shape is undocumented.
+export interface MuralExportStatus {
+  url?: string;
+  [key: string]: unknown;
+}
+
 export interface MuralRoom {
   id: number | string;
   name?: string;
