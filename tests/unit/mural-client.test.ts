@@ -336,6 +336,22 @@ describe('MuralClient', () => {
       await expect(createClient().getExportStatus('m1', 'e1')).resolves.toEqual({});
     });
 
+    it('getExportStatus treats a 404 EXPORT_NOT_FOUND as still processing instead of throwing', async () => {
+      // Real API behaviour: while the job runs, Mural returns 404 EXPORT_NOT_FOUND
+      // ("...or the process has not finished yet"), not a 200 with an empty value.
+      fetchMock.mockResolvedValue(
+        mockFetchResponse(404, { code: 'EXPORT_NOT_FOUND', message: 'The export was not found or the process has not finished yet.' }),
+      );
+
+      await expect(createClient().getExportStatus('m1', 'e1')).resolves.toEqual({});
+    });
+
+    it('getExportStatus still throws on other API errors', async () => {
+      fetchMock.mockResolvedValue(mockFetchResponse(403, { code: 'INVALID_SCOPE', message: 'Invalid scope' }));
+
+      await expect(createClient().getExportStatus('m1', 'e1')).rejects.toThrow('HTTP 403');
+    });
+
     it('downloadExport writes the file to outputPath when the export is ready', async () => {
       fetchMock
         .mockResolvedValueOnce(mockFetchResponse(200, { value: { url: 'https://s3.example/export.pdf' } }))
@@ -359,6 +375,18 @@ describe('MuralClient', () => {
 
       expect(result.ready).toBe(false);
       expect(fetchMock).toHaveBeenCalledTimes(1); // status only, no download attempt
+      expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled();
+    });
+
+    it('downloadExport returns ready:false on a 404 EXPORT_NOT_FOUND status without writing', async () => {
+      fetchMock.mockResolvedValue(
+        mockFetchResponse(404, { code: 'EXPORT_NOT_FOUND', message: 'The export was not found or the process has not finished yet.' }),
+      );
+
+      const result = await createClient().downloadExport('m1', 'e1', '/tmp/out/export.pdf');
+
+      expect(result.ready).toBe(false);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled();
     });
   });

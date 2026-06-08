@@ -487,6 +487,14 @@ export class MuralClient {
       const response = await this.makeAuthenticatedRequest<any>(`/murals/${encodeURIComponent(muralId)}/exports/${encodeURIComponent(exportId)}`);
       return response.value || response;
     } catch (error) {
+      // While the export job is still running, Mural answers 404 EXPORT_NOT_FOUND
+      // ("...or the process has not finished yet") rather than a 200 without a url.
+      // Surface that as "not ready yet" (no url) so callers can poll, instead of
+      // throwing. NB: a genuinely invalid mural/export id yields the same code,
+      // so callers must bound their polling.
+      if (error instanceof MuralApiError && error.status === 404 && error.errorCode === 'EXPORT_NOT_FOUND') {
+        return {};
+      }
       console.error(`Failed to get export status for mural ${muralId} (export ${exportId}):`, error);
       throw error;
     }
