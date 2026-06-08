@@ -392,7 +392,7 @@ async function main() {
         {
           name: 'get-export-status',
           description:
-            'Check the status of an async mural export and get the download URL once ready (requires murals:read). Poll this with the exportId returned by export-mural; the response includes ready:true and the URL when the file is available',
+            'Check the status of an async mural export (requires murals:read). Optional/observability-only: returns ready:true plus the download URL when the file is available, ready:false while still processing. To actually fetch the file you do not need this — call download-export directly (it resolves the URL itself). Use this only to report progress to the user',
           inputSchema: {
             type: 'object',
             properties: {
@@ -406,7 +406,7 @@ async function main() {
         {
           name: 'download-export',
           description:
-            'Download a ready mural export to a local file (requires murals:read). Resolves the export URL via the status endpoint then writes the file to outputPath. If the export is not ready yet, returns ready:false without writing — retry later',
+            'Download a ready mural export to a local file (requires murals:read). Resolves the export URL itself then writes the file to outputPath. Single-shot: if the export is not ready yet it returns ready:false without writing. Normal usage: call this directly (no need for get-export-status first) and, while it returns ready:false, wait a few seconds and call it again until ready:true',
           inputSchema: {
             type: 'object',
             properties: {
