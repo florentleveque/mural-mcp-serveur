@@ -83,6 +83,10 @@ async function main() {
                 description: 'Number of workspaces to skip for pagination (optional)',
                 minimum: 0,
               },
+              verbose: {
+                type: 'boolean',
+                description: 'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
+              },
             },
             additionalProperties: false,
           },
@@ -96,6 +100,10 @@ async function main() {
               workspaceId: {
                 type: 'string',
                 description: 'The unique identifier of the workspace',
+              },
+              verbose: {
+                type: 'boolean',
+                description: 'If true, return the full raw object instead of the compact view (optional, defaults to false)',
               },
             },
             required: ['workspaceId'],
@@ -148,6 +156,10 @@ async function main() {
                 type: 'string',
                 description: 'The unique identifier of the workspace',
               },
+              verbose: {
+                type: 'boolean',
+                description: 'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
+              },
             },
             required: ['workspaceId'],
             additionalProperties: false,
@@ -162,6 +174,10 @@ async function main() {
               roomId: {
                 type: 'string',
                 description: 'The unique identifier of the room',
+              },
+              verbose: {
+                type: 'boolean',
+                description: 'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
               },
             },
             required: ['roomId'],
@@ -181,6 +197,10 @@ async function main() {
               openOnly: {
                 type: 'boolean',
                 description: 'If true, list only open (discoverable) rooms instead of all rooms (optional, defaults to false)',
+              },
+              verbose: {
+                type: 'boolean',
+                description: 'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
               },
             },
             required: ['workspaceId'],
@@ -204,6 +224,10 @@ async function main() {
               withoutDefault: {
                 type: 'boolean',
                 description: 'If true, exclude Mural default templates and return only custom ones (optional, ignored when searchQuery is set)',
+              },
+              verbose: {
+                type: 'boolean',
+                description: 'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
               },
             },
             required: ['workspaceId'],
@@ -365,6 +389,10 @@ async function main() {
               boardId: {
                 type: 'string',
                 description: 'The unique identifier of the board/mural',
+              },
+              verbose: {
+                type: 'boolean',
+                description: 'If true, return the full raw object instead of the compact view (optional, defaults to false)',
               },
             },
             required: ['boardId'],
@@ -791,23 +819,25 @@ async function main() {
           const schema = z.object({
             limit: z.number().min(1).max(100).optional(),
             offset: z.number().min(0).optional(),
+            verbose: z.boolean().optional().default(false),
           });
 
-          const { limit, offset } = schema.parse(args || {});
+          const { limit, offset, verbose } = schema.parse(args || {});
           const workspaces = await muralClient.getWorkspaces(limit, offset);
 
-          return jsonResult({ workspaces: projectWorkspaces(workspaces), count: workspaces.length });
+          return jsonResult({ workspaces: verbose ? workspaces : projectWorkspaces(workspaces), count: workspaces.length });
         }
 
         case 'get-workspace': {
           const schema = z.object({
             workspaceId: z.string().min(1),
+            verbose: z.boolean().optional().default(false),
           });
 
-          const { workspaceId } = schema.parse(args);
+          const { workspaceId, verbose } = schema.parse(args);
           const workspace = await muralClient.getWorkspace(workspaceId);
 
-          return jsonResult({ workspace: toCompactWorkspace(workspace) });
+          return jsonResult({ workspace: verbose ? workspace : toCompactWorkspace(workspace) });
         }
 
         case 'test-connection': {
@@ -846,35 +876,38 @@ async function main() {
         case 'list-workspace-boards': {
           const schema = z.object({
             workspaceId: z.string().min(1),
+            verbose: z.boolean().optional().default(false),
           });
 
-          const { workspaceId } = schema.parse(args);
+          const { workspaceId, verbose } = schema.parse(args);
           const boards = await muralClient.getWorkspaceMurals(workspaceId);
 
-          return jsonResult({ boards: projectBoards(boards), count: boards.length, workspaceId });
+          return jsonResult({ boards: verbose ? boards : projectBoards(boards), count: boards.length, workspaceId });
         }
 
         case 'list-room-boards': {
           const schema = z.object({
             roomId: z.string().min(1),
+            verbose: z.boolean().optional().default(false),
           });
 
-          const { roomId } = schema.parse(args);
+          const { roomId, verbose } = schema.parse(args);
           const boards = await muralClient.getRoomMurals(roomId);
 
-          return jsonResult({ boards: projectBoards(boards), count: boards.length, roomId });
+          return jsonResult({ boards: verbose ? boards : projectBoards(boards), count: boards.length, roomId });
         }
 
         case 'list-workspace-rooms': {
           const schema = z.object({
             workspaceId: z.string().min(1),
             openOnly: z.boolean().optional().default(false),
+            verbose: z.boolean().optional().default(false),
           });
 
-          const { workspaceId, openOnly } = schema.parse(args);
+          const { workspaceId, openOnly, verbose } = schema.parse(args);
           const rooms = await muralClient.getWorkspaceRooms(workspaceId, openOnly);
 
-          return jsonResult({ rooms: projectRooms(rooms), count: rooms.length, workspaceId, openOnly });
+          return jsonResult({ rooms: verbose ? rooms : projectRooms(rooms), count: rooms.length, workspaceId, openOnly });
         }
 
         case 'list-workspace-templates': {
@@ -882,12 +915,18 @@ async function main() {
             workspaceId: z.string().min(1),
             searchQuery: z.string().optional(),
             withoutDefault: z.boolean().optional().default(false),
+            verbose: z.boolean().optional().default(false),
           });
 
-          const { workspaceId, searchQuery, withoutDefault } = schema.parse(args);
+          const { workspaceId, searchQuery, withoutDefault, verbose } = schema.parse(args);
           const templates = await muralClient.getWorkspaceTemplates(workspaceId, searchQuery, withoutDefault);
 
-          return jsonResult({ templates: projectTemplates(templates), count: templates.length, workspaceId, searchQuery: searchQuery ?? null });
+          return jsonResult({
+            templates: verbose ? templates : projectTemplates(templates),
+            count: templates.length,
+            workspaceId,
+            searchQuery: searchQuery ?? null,
+          });
         }
 
         case 'create-mural-from-template': {
@@ -991,12 +1030,13 @@ async function main() {
         case 'get-board': {
           const schema = z.object({
             boardId: z.string().min(1),
+            verbose: z.boolean().optional().default(false),
           });
 
-          const { boardId } = schema.parse(args);
+          const { boardId, verbose } = schema.parse(args);
           const board = await muralClient.getMural(boardId);
 
-          return jsonResult({ board: toCompactBoard(board) });
+          return jsonResult({ board: verbose ? board : toCompactBoard(board) });
         }
 
         case 'check-user-scopes': {
