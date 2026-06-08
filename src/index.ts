@@ -378,7 +378,8 @@ async function main() {
         },
         {
           name: 'export-mural',
-          description: 'Export a mural in a given format (requires murals:read). Accepted downloadFormat values are defined by the Mural API',
+          description:
+            'Start an ASYNCHRONOUS mural export (requires murals:read). Returns an exportId — it does NOT return the file. To get the file, call download-export with this exportId (retry until ready:true). Accepted downloadFormat values are defined by the Mural API',
           inputSchema: {
             type: 'object',
             properties: {
@@ -1066,7 +1067,7 @@ async function main() {
           const result = await muralClient.exportMural(muralId, downloadFormat);
           return jsonResult({
             export: result,
-            message: `Started export of mural ${muralId} as ${downloadFormat}. Poll get-export-status with the returned exportId, then download-export once ready`,
+            message: `Started export of mural ${muralId} as ${downloadFormat}. Call download-export with the returned exportId, retrying while it returns ready:false until ready:true`,
           });
         }
 
