@@ -32,9 +32,10 @@ This is a Model Context Protocol (MCP) server that provides integration with the
 
 1. **MCP Server** (`src/index.ts`) - Main entry point that:
    - Uses stdio transport for MCP communication
-   - Implements 4 tools: `list-workspaces`, `get-workspace`, `test-connection`, `clear-auth`
-   - Handles environment variable validation for `MURAL_CLIENT_ID`
+   - Exposes ~30 tools spanning authentication/utilities, reads (workspaces, rooms, templates, boards, widgets) and writes (full CRUD on murals, room/widget creation) — see "MCP Tools Available" below
+   - Validates the required environment variables (`MURAL_CLIENT_ID`, `MURAL_CLIENT_SECRET`)
    - Uses Zod for input validation
+   - Formats every tool response through `src/mcp-format.ts` (`jsonResult`/`jsonError`) and compacts read payloads through `src/projections.ts`
 
 2. **OAuth Handler** (`src/oauth.ts`) - Manages authentication:
    - Implements OAuth 2.0 with PKCE (Proof Key for Code Exchange)
@@ -45,10 +46,15 @@ This is a Model Context Protocol (MCP) server that provides integration with the
 3. **Mural API Client** (`src/mural-client.ts`) - API interaction:
    - Makes authenticated requests to `https://app.mural.co/api/public/v1`
    - Handles token refresh automatically
-   - Provides workspace listing and retrieval methods
+   - Covers the full read/write surface (workspaces, rooms, templates, murals CRUD, widgets), paginating list endpoints via the API cursor
+   - Throws a typed `MuralApiError` (carrying `status`, `errorCode`, `apiMessage`) instead of message-based errors, and derives 429 wait times from the `x-ratelimit-*-reset` headers
 
-4. **TypeScript Types** (`src/types.ts`) - Type definitions for:
-   - Mural API responses (`MuralWorkspace`, `MuralWorkspacesResponse`)
+4. **Compact projections** (`src/projections.ts`) - Trims raw API objects down to the fields an LLM needs (`toCompact*`/`project*`), keeping responses small. Each read tool exposes a `verbose` flag to opt back into the full raw object.
+
+5. **MCP response formatting** (`src/mcp-format.ts`) - `jsonResult`/`jsonError` build the MCP response envelope; `jsonError` surfaces `MuralApiError` fields (`status`, `errorCode`) in the error payload.
+
+6. **TypeScript Types** (`src/types.ts`) - Type definitions for:
+   - Mural API responses aligned with the real API shape (`MuralWorkspace`, `MuralRoom`, `MuralTemplate`, `MuralWidget`, ...)
    - OAuth flow data (`OAuthTokens`, `PKCEChallenge`, etc.)
 
 ### Environment Variables
@@ -56,10 +62,10 @@ This is a Model Context Protocol (MCP) server that provides integration with the
 Required:
 
 - `MURAL_CLIENT_ID` - OAuth client ID from Mural Developer Portal
+- `MURAL_CLIENT_SECRET` - OAuth client secret (Mural requires it for the token exchange)
 
 Optional:
 
-- `MURAL_CLIENT_SECRET` - OAuth client secret (recommended)
 - `MURAL_REDIRECT_URI` - Defaults to `http://localhost:3000/callback`
 
 ### Authentication Flow
@@ -71,10 +77,16 @@ Optional:
 
 ### MCP Tools Available
 
-- `list-workspaces` - Returns array of user's workspaces with optional pagination
-- `get-workspace` - Get detailed workspace info by ID
-- `test-connection` - Verify API connectivity
-- `clear-auth` - Clear stored authentication tokens
+See `README.md` for the full per-tool description. Grouped overview:
+
+- **Auth & utilities**: `test-connection`, `clear-auth`, `check-user-scopes`, `get-rate-limit-status`, `debug-api-response`
+- **Workspaces**: `list-workspaces`, `get-workspace`
+- **Rooms**: `list-workspace-rooms`, `list-room-boards`, `create-room`
+- **Templates**: `list-workspace-templates`, `create-mural-from-template`
+- **Murals**: `list-workspace-boards`, `get-board`, `create-mural`, `update-mural`, `delete-mural`, `duplicate-mural`, `export-mural`
+- **Widgets**: `get-mural-widgets`, `get-mural-widget`, `create-sticky-notes`, `update-sticky-note`, `create-shapes`, `create-arrows`, `create-text-boxes`, `create-titles`, `create-areas`, `update-widget`, `delete-widget`
+
+Read tools return a compact projection by default (see `src/projections.ts`); pass `verbose: true` to get the full raw object.
 
 ### Development Notes
 

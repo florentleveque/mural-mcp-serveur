@@ -14,6 +14,7 @@ A Model Context Protocol (MCP) server that provides integration with the Mural v
 - **Murals**: full CRUD — create (blank or from template), read, update, delete, duplicate, export
 - **Widgets**: read, create and update sticky notes, shapes, arrows, text boxes, titles and areas; delete widgets
 - **Pagination**: list endpoints follow the API cursor to return all items
+- **Compact responses**: read tools return a trimmed projection of each object by default to save context; pass `verbose: true` for the full raw payload
 - **MCP Compliance**: Full Model Context Protocol compatibility
 - **Token Management**: Automatic token refresh and secure storage
 
