@@ -117,6 +117,9 @@ export class MuralOAuth {
 
     const tokens = data as OAuthTokens;
     tokens.expires_at = Date.now() + tokens.expires_in * 1000;
+    // Mural's refresh response may omit refresh_token; keep the previous one so
+    // we don't lose refresh capability and force a full interactive re-auth.
+    tokens.refresh_token ??= refreshToken;
 
     return tokens;
   }

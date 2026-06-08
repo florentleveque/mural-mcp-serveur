@@ -139,6 +139,15 @@ describe('MuralOAuth', () => {
 
       await expect(asAny(createOAuth()).refreshAccessToken('old-rt')).rejects.toThrow('OAuth token refresh failed: invalid_grant - Refresh token expired');
     });
+
+    it('keeps the previous refresh_token when the response omits it', async () => {
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: 'new-at', expires_in: 3600 }));
+
+      const tokens = await asAny(createOAuth('secret')).refreshAccessToken('old-rt');
+
+      expect(tokens.access_token).toBe('new-at');
+      expect(tokens.refresh_token).toBe('old-rt');
+    });
   });
 
   describe('token persistence', () => {
