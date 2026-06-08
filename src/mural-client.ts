@@ -694,8 +694,10 @@ export class MuralClient {
         throw new Error(`Permission denied: ${scopeCheck.message}. Please ensure your Mural OAuth app has 'murals:read' scope and re-authenticate.`);
       }
 
-      const response = await this.makeAuthenticatedRequest<MuralWidget>(`/murals/${encodeURIComponent(muralId)}/widgets/${encodeURIComponent(widgetId)}`);
-      return response;
+      const response = await this.makeAuthenticatedRequest<any>(`/murals/${encodeURIComponent(muralId)}/widgets/${encodeURIComponent(widgetId)}`);
+      // The single-widget endpoint wraps the widget in a `value` envelope, like
+      // the other endpoints; unwrap it so callers get the widget directly.
+      return response.value || response;
     } catch (error) {
       console.error(`Failed to fetch widget ${widgetId} from mural ${muralId}:`, error);
       throw error;
