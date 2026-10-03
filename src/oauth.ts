@@ -130,12 +130,18 @@ export class MuralOAuth {
   private async saveTokens(tokens: OAuthTokens): Promise<void> {
     try {
       await fs.writeFile(TOKEN_FILE_PATH, JSON.stringify(tokens, null, 2), { mode: 0o600 });
-      // writeFile only applies `mode` when creating the file; chmod also tightens
-      // a file left world-readable (0o644) by an earlier version of this server.
-      await fs.chmod(TOKEN_FILE_PATH, 0o600);
     } catch (error) {
       console.error('Failed to save tokens:', error);
       throw new Error('Failed to save authentication tokens');
+    }
+    // writeFile only applies `mode` when creating the file; chmod also tightens
+    // a file left world-readable (0o644) by an earlier version of this server.
+    // Best-effort: some filesystems (network/FUSE mounts, WSL drvfs) reject chmod,
+    // and the tokens are already persisted, so a failure must not discard them.
+    try {
+      await fs.chmod(TOKEN_FILE_PATH, 0o600);
+    } catch (error) {
+      console.warn('Could not restrict token file permissions to 0600:', error);
     }
   }
 
@@ -264,6 +270,13 @@ export class MuralOAuth {
         await this.saveTokens(refreshedTokens);
         return refreshedTokens;
       } catch (error) {
+        // Inside the expiry margin the stored token still works: keep using it
+        // rather than blocking on an interactive browser flow over a transient
+        // refresh failure (network error, Mural 5xx).
+        if (existingTokens.expires_at && existingTokens.expires_at > Date.now()) {
+          console.warn('Token refresh failed, using the still-valid stored token');
+          return existingTokens;
+        }
         console.warn('Token refresh failed, starting new authentication flow');
       }
     }

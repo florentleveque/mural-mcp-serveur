@@ -224,6 +224,32 @@ describe('MuralOAuth', () => {
       expect(body.get('grant_type')).toBe('refresh_token');
     });
 
+    it('falls back to the still-valid stored token when a refresh inside the margin fails', async () => {
+      // +10 s: inside the 30 s margin, so a refresh is attempted, but the token still works.
+      const stored = mockOAuthTokens({ expires_at: Date.now() + 10_000, refresh_token: 'old-rt' });
+      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
+      fetchMock.mockResolvedValue(mockFetchResponse(503, { error: 'server_error' }));
+      const startCallbackServer = vi.spyOn(asAny(MuralOAuth.prototype), 'startCallbackServer');
+
+      await expect(createOAuth('secret').authenticate()).resolves.toEqual(stored);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      // No interactive browser flow for a transient refresh failure.
+      expect(startCallbackServer).not.toHaveBeenCalled();
+    });
+
+    it('keeps refreshed tokens when tightening the file permissions fails', async () => {
+      const stored = mockOAuthTokens({ expires_at: Date.now() - 1000, refresh_token: 'old-rt' });
+      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
+      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+      vi.mocked(fs.chmod).mockRejectedValue(Object.assign(new Error('EPERM'), { code: 'EPERM' }));
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: 'new-at', refresh_token: 'new-rt', expires_in: 3600 }));
+
+      const tokens = await createOAuth('secret').authenticate();
+
+      expect(tokens.access_token).toBe('new-at');
+      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('permissions'), expect.any(Error));
+    });
+
     it('getValidAccessToken returns the access token of valid stored tokens', async () => {
       const stored = mockOAuthTokens({ expires_at: Date.now() + 60_000 });
       vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
