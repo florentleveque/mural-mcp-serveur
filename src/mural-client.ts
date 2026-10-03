@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+import { decodeJwtPayload } from './jwt.js';
 import { MuralOAuth } from './oauth.js';
 import { MuralRateLimiter } from './rate-limiter.js';
 import type {
@@ -78,6 +79,10 @@ export class MuralClient {
   }
 
   private async makeAuthenticatedRequest<T>(endpoint: string, options: RequestInit = {}, maxRetries: number = 3): Promise<T> {
+    // Access token the API answered 401 to during this request, if any. A 401 is
+    // retried once with a new token (revoked, or rotated by another process).
+    let rejectedToken: string | null = null;
+
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       // Check rate limits before making request
       const rateLimitCheck = await this.rateLimiter.canMakeRequest();
@@ -101,6 +106,11 @@ export class MuralClient {
 
       try {
         const accessToken = await this.getAccessToken();
+        // globalAuthPromise dedupes concurrent calls: one already in flight when
+        // the 401 came in can hand back the rejected token. Never resend it.
+        if (accessToken === rejectedToken) {
+          throw new MuralApiError(401, 'Unauthorized', undefined, 'The access token was rejected and no new token could be obtained');
+        }
 
         const url = `${this.baseUrl}${endpoint}`;
         const headers = {
@@ -126,6 +136,20 @@ export class MuralClient {
           } else {
             throw new MuralApiError(429, 'Too Many Requests', undefined, 'API rate limit exceeded. Max retries reached or wait time too long.');
           }
+        }
+
+        // The token was rejected (revoked server-side, or rotated by another
+        // server process sharing the token file): invalidate it and replay the
+        // request once. Only 401: a 403 (INVALID_SCOPE) cannot be fixed by a
+        // refresh. Replaying is safe: the request was rejected before being
+        // processed, and bodies are strings. The replay does not consume a
+        // 5xx/network retry.
+        if (response.status === 401 && rejectedToken === null) {
+          rejectedToken = accessToken;
+          this.oauth.invalidateAccessToken(accessToken);
+          console.warn('Access token rejected (HTTP 401). Retrying once with a new token...');
+          attempt--;
+          continue;
         }
 
         if (!response.ok) {
@@ -625,17 +649,10 @@ export class MuralClient {
 
       // If no top-level scope field, try to decode JWT access token
       if (tokens.access_token) {
-        try {
-          // Decode JWT payload (without verification - just for scope extraction)
-          const payloadPart = tokens.access_token.split('.')[1];
-          if (payloadPart) {
-            const payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString());
-            if (payload.scopes && Array.isArray(payload.scopes)) {
-              return payload.scopes;
-            }
-          }
-        } catch (jwtError) {
-          console.warn('Failed to decode JWT for scope extraction:', jwtError);
+        // Decode JWT payload (without verification - just for scope extraction)
+        const payload = decodeJwtPayload(tokens.access_token);
+        if (payload && Array.isArray(payload.scopes)) {
+          return payload.scopes as string[];
         }
       }
 

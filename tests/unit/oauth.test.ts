@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { MuralOAuth } from '../../src/oauth.js';
+import { MuralOAuth, normalizeTokenResponse } from '../../src/oauth.js';
 import { mockFetchResponse, mockOAuthTokens } from './helpers.js';
 
 // Token persistence goes through fs/promises (~/.mural-mcp-tokens.json).
@@ -10,7 +10,8 @@ vi.mock('fs/promises', () => ({
   default: {
     readFile: vi.fn(),
     writeFile: vi.fn(),
-    chmod: vi.fn(),
+    rename: vi.fn(),
+    rm: vi.fn(),
     unlink: vi.fn(),
   },
 }));
@@ -20,6 +21,13 @@ vi.mock('fs/promises', () => ({
 // scope: they require a real HTTP server and a browser.
 
 const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/;
+const TOKEN_FILE = expect.stringMatching(/\.mural-mcp-tokens\.json$/);
+const TMP_FILE = expect.stringMatching(/\.mural-mcp-tokens\.json\.\d+\.tmp$/);
+
+/** Unsigned JWT carrying the given payload (only the payload is ever decoded). */
+function fakeJwt(payload: Record<string, unknown>): string {
+  return `eyJhbGciOiJub25lIn0.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.sig`;
+}
 
 function createOAuth(clientSecret?: string): MuralOAuth {
   return new MuralOAuth('client-id', clientSecret);
@@ -39,6 +47,11 @@ describe('MuralOAuth', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // Default fs behaviour: no token file, writes succeed.
+    vi.mocked(fs.readFile).mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+    vi.mocked(fs.rename).mockResolvedValue(undefined);
+    vi.mocked(fs.rm).mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -113,6 +126,19 @@ describe('MuralOAuth', () => {
       expect(body.has('client_secret')).toBe(false);
     });
 
+    it('does not persist anything when the response has no access_token', async () => {
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: '', expires_in: 3600 }));
+
+      await expect(asAny(createOAuth()).exchangeCodeForTokens('auth-code', 'verifier')).rejects.toThrow('missing access_token');
+      expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('reports the HTTP status when the error body is not JSON', async () => {
+      fetchMock.mockResolvedValue(new Response('<html>Bad Gateway</html>', { status: 502 }));
+
+      await expect(asAny(createOAuth()).exchangeCodeForTokens('auth-code', 'verifier')).rejects.toThrow('OAuth token exchange failed: HTTP 502');
+    });
+
     it('throws with the OAuth error description on failure', async () => {
       fetchMock.mockResolvedValue(mockFetchResponse(400, { error: 'invalid_client', error_description: 'Client authentication failed' }));
 
@@ -150,6 +176,57 @@ describe('MuralOAuth', () => {
     });
   });
 
+  describe('normalizeTokenResponse', () => {
+    const NOW = 1_700_000_000_000;
+
+    it('computes expires_at from expires_in', () => {
+      const tokens = normalizeTokenResponse({ access_token: 'at', expires_in: 3600, token_type: 'Bearer', scope: 'murals:read' }, undefined, NOW);
+
+      expect(tokens).toEqual({ access_token: 'at', token_type: 'Bearer', expires_in: 3600, expires_at: NOW + 3600_000, scope: 'murals:read' });
+    });
+
+    it('coerces a numeric string expires_in', () => {
+      expect(normalizeTokenResponse({ access_token: 'at', expires_in: '900' }, undefined, NOW).expires_at).toBe(NOW + 900_000);
+    });
+
+    it('falls back to the JWT exp claim when expires_in is missing', () => {
+      const exp = NOW / 1000 + 1200;
+
+      const tokens = normalizeTokenResponse({ access_token: fakeJwt({ exp }) }, undefined, NOW);
+
+      expect(tokens.expires_at).toBe(exp * 1000);
+      expect(tokens.expires_in).toBe(1200);
+    });
+
+    it.each([0, -5, 'abc', null])('ignores an unusable expires_in (%s)', expiresIn => {
+      const exp = NOW / 1000 + 600;
+
+      expect(normalizeTokenResponse({ access_token: fakeJwt({ exp }), expires_in: expiresIn }, undefined, NOW).expires_at).toBe(exp * 1000);
+    });
+
+    it('defaults to a 5 minute lifetime with a warning when neither expires_in nor a JWT exp is usable', () => {
+      const tokens = normalizeTokenResponse({ access_token: 'opaque-token' }, undefined, NOW);
+
+      expect(tokens.expires_at).toBe(NOW + 5 * 60_000);
+      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('5 minute'));
+    });
+
+    it('ignores a JWT exp already in the past', () => {
+      expect(normalizeTokenResponse({ access_token: fakeJwt({ exp: NOW / 1000 - 10 }) }, undefined, NOW).expires_at).toBe(NOW + 5 * 60_000);
+    });
+
+    it.each([undefined, '', 42])('throws when access_token is missing or empty (%s)', accessToken => {
+      expect(() => normalizeTokenResponse({ access_token: accessToken, expires_in: 3600 })).toThrow('missing access_token');
+    });
+
+    it('defaults token_type to Bearer and keeps the previous refresh_token', () => {
+      const tokens = normalizeTokenResponse({ access_token: 'at', expires_in: 60 }, 'previous-rt', NOW);
+
+      expect(tokens.token_type).toBe('Bearer');
+      expect(tokens.refresh_token).toBe('previous-rt');
+    });
+  });
+
   describe('token persistence', () => {
     it('getStoredTokens parses the token file', async () => {
       const stored = mockOAuthTokens();
@@ -163,6 +240,43 @@ describe('MuralOAuth', () => {
       vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'));
 
       await expect(createOAuth().getStoredTokens()).resolves.toBeNull();
+    });
+
+    it('getStoredTokens returns null for a file without access_token', async () => {
+      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify({ refresh_token: 'rt', expires_at: Date.now() + 60_000 }));
+
+      await expect(createOAuth().getStoredTokens()).resolves.toBeNull();
+    });
+
+    it('getStoredTokens returns null for a truncated file', async () => {
+      vi.mocked(fs.readFile).mockResolvedValue('{"access_token": "at", "refr');
+
+      await expect(createOAuth().getStoredTokens()).resolves.toBeNull();
+    });
+
+    it('saveTokens removes the temp file and throws when the write fails', async () => {
+      vi.mocked(fs.writeFile).mockRejectedValue(Object.assign(new Error('ENOSPC'), { code: 'ENOSPC' }));
+
+      await expect(asAny(createOAuth()).saveTokens(mockOAuthTokens())).rejects.toThrow('Failed to save authentication tokens');
+      expect(fs.rename).not.toHaveBeenCalled();
+      expect(fs.rm).toHaveBeenLastCalledWith(TMP_FILE, { force: true });
+    });
+
+    it('saveTokens retries a rename that fails transiently (Windows EPERM)', async () => {
+      vi.mocked(fs.rename)
+        .mockRejectedValueOnce(Object.assign(new Error('EPERM'), { code: 'EPERM' }))
+        .mockResolvedValueOnce(undefined);
+
+      await asAny(createOAuth()).saveTokens(mockOAuthTokens());
+
+      expect(fs.rename).toHaveBeenCalledTimes(2);
+    });
+
+    it('saveTokens does not retry a rename failing with a non-transient error', async () => {
+      vi.mocked(fs.rename).mockRejectedValue(Object.assign(new Error('EXDEV'), { code: 'EXDEV' }));
+
+      await expect(asAny(createOAuth()).saveTokens(mockOAuthTokens())).rejects.toThrow('Failed to save authentication tokens');
+      expect(fs.rename).toHaveBeenCalledTimes(1);
     });
 
     it('clearTokens deletes the token file', async () => {
@@ -192,8 +306,6 @@ describe('MuralOAuth', () => {
     it('refreshes expired tokens and persists the new ones', async () => {
       const stored = mockOAuthTokens({ expires_at: Date.now() - 1000, refresh_token: 'old-rt' });
       vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
-      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
-      vi.mocked(fs.chmod).mockResolvedValue(undefined);
       fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: 'new-at', refresh_token: 'new-rt', expires_in: 3600 }));
 
       const tokens = await createOAuth('secret').authenticate();
@@ -201,9 +313,10 @@ describe('MuralOAuth', () => {
       expect(tokens.access_token).toBe('new-at');
       const body = fetchMock.mock.calls[0]?.[1]?.body as URLSearchParams;
       expect(body.get('grant_type')).toBe('refresh_token');
-      // The token file holds plaintext credentials: it must be written and kept at 0o600.
-      expect(fs.writeFile).toHaveBeenCalledWith(expect.stringContaining('.mural-mcp-tokens.json'), expect.stringContaining('new-at'), { mode: 0o600 });
-      expect(fs.chmod).toHaveBeenCalledWith(expect.stringContaining('.mural-mcp-tokens.json'), 0o600);
+      // The token file holds plaintext credentials: written to a private temp
+      // file created by this call (0o600, wx), then atomically renamed.
+      expect(fs.writeFile).toHaveBeenCalledWith(TMP_FILE, expect.stringContaining('new-at'), { mode: 0o600, flag: 'wx' });
+      expect(fs.rename).toHaveBeenCalledWith(vi.mocked(fs.writeFile).mock.calls[0]?.[0], TOKEN_FILE);
       // Diagnostics must go to stderr, never stdout, to keep the MCP stdio stream clean.
       // eslint-disable-next-line no-console -- asserting on the console.log spy, not logging
       expect(console.log).not.toHaveBeenCalled();
@@ -213,8 +326,6 @@ describe('MuralOAuth', () => {
       // Still valid by raw expiry (+10 s) but inside the 30 s margin → refresh proactively.
       const stored = mockOAuthTokens({ expires_at: Date.now() + 10_000, refresh_token: 'old-rt' });
       vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
-      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
-      vi.mocked(fs.chmod).mockResolvedValue(undefined);
       fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: 'new-at', refresh_token: 'new-rt', expires_in: 3600 }));
 
       const tokens = await createOAuth('secret').authenticate();
@@ -237,17 +348,65 @@ describe('MuralOAuth', () => {
       expect(startCallbackServer).not.toHaveBeenCalled();
     });
 
-    it('keeps refreshed tokens when tightening the file permissions fails', async () => {
-      const stored = mockOAuthTokens({ expires_at: Date.now() - 1000, refresh_token: 'old-rt' });
+    it('does not serve a stored token that the API rejected, even if not expired', async () => {
+      const stored = mockOAuthTokens({ access_token: 'revoked-at', expires_at: Date.now() + 3600_000, refresh_token: 'old-rt' });
       vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
-      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
-      vi.mocked(fs.chmod).mockRejectedValue(Object.assign(new Error('EPERM'), { code: 'EPERM' }));
-      fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: 'new-at', refresh_token: 'new-rt', expires_in: 3600 }));
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: 'new-at', expires_in: 3600 }));
+      const oauth = createOAuth('secret');
+
+      oauth.invalidateAccessToken('revoked-at');
+
+      await expect(oauth.getValidAccessToken()).resolves.toBe('new-at');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('serves a different token found in the file after an invalidation, without any network call', async () => {
+      // Another server process already refreshed: the file holds a new token.
+      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(mockOAuthTokens({ access_token: 'other-process-at' })));
+      const oauth = createOAuth('secret');
+
+      oauth.invalidateAccessToken('revoked-at');
+
+      await expect(oauth.getValidAccessToken()).resolves.toBe('other-process-at');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('does not fall back to a rejected token when the refresh fails', async () => {
+      const stored = mockOAuthTokens({ access_token: 'revoked-at', expires_at: Date.now() + 3600_000, refresh_token: 'old-rt' });
+      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
+      fetchMock.mockResolvedValue(mockFetchResponse(400, { error: 'invalid_grant' }));
+      // Stop at the first step of the interactive flow (no server, no browser).
+      const generateAuthorizationUrl = vi.spyOn(asAny(MuralOAuth.prototype), 'generateAuthorizationUrl').mockImplementation(() => {
+        throw new Error('interactive flow');
+      });
+      const oauth = createOAuth('secret');
+      oauth.invalidateAccessToken('revoked-at');
+
+      await expect(oauth.authenticate()).rejects.toThrow('interactive flow');
+      expect(generateAuthorizationUrl).toHaveBeenCalled();
+    });
+
+    it('uses a token refreshed by another process when its own refresh fails with invalid_grant', async () => {
+      const expired = mockOAuthTokens({ expires_at: Date.now() - 1000, refresh_token: 'old-rt' });
+      const refreshedElsewhere = mockOAuthTokens({ access_token: 'other-process-at', refresh_token: 'rotated-rt' });
+      vi.mocked(fs.readFile).mockResolvedValueOnce(JSON.stringify(expired)).mockResolvedValueOnce(JSON.stringify(refreshedElsewhere));
+      fetchMock.mockResolvedValue(mockFetchResponse(400, { error: 'invalid_grant', error_description: 'Refresh token already used' }));
+      const startCallbackServer = vi.spyOn(asAny(MuralOAuth.prototype), 'startCallbackServer');
+
+      await expect(createOAuth('secret').getValidAccessToken()).resolves.toBe('other-process-at');
+      expect(startCallbackServer).not.toHaveBeenCalled();
+    });
+
+    it('refreshes once a token file whose expires_at was persisted as null', async () => {
+      // Written by older versions when the token response had no expires_in (NaN → null).
+      const stored = { ...mockOAuthTokens({ refresh_token: 'old-rt' }), expires_at: null };
+      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: 'new-at', expires_in: 3600 }));
 
       const tokens = await createOAuth('secret').authenticate();
 
       expect(tokens.access_token).toBe('new-at');
-      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('permissions'), expect.any(Error));
+      expect(Number.isFinite(tokens.expires_at)).toBe(true);
     });
 
     it('getValidAccessToken returns the access token of valid stored tokens', async () => {

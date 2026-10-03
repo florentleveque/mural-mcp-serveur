@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   getValidAccessToken: vi.fn(),
   getStoredTokens: vi.fn(),
   clearTokens: vi.fn(),
+  invalidateAccessToken: vi.fn(),
   canMakeRequest: vi.fn(),
   consumeRequest: vi.fn(),
   getRateLimitStatus: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock('../../src/oauth.js', () => ({
     getValidAccessToken = mocks.getValidAccessToken;
     getStoredTokens = mocks.getStoredTokens;
     clearTokens = mocks.clearTokens;
+    invalidateAccessToken = mocks.invalidateAccessToken;
   },
 }));
 
@@ -93,11 +95,70 @@ describe('MuralClient', () => {
       await expect(createClient().getWorkspace('ws1')).resolves.toBeUndefined();
     });
 
-    it.each([400, 401, 403])('does not retry on HTTP %i client errors', async status => {
+    it.each([400, 403, 404])('does not retry on HTTP %i client errors', async status => {
       fetchMock.mockResolvedValue(mockFetchResponse(status, { message: 'client error' }));
 
       await expect(createClient().getWorkspace('ws1')).rejects.toThrow(`HTTP ${status}`);
       expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(mocks.invalidateAccessToken).not.toHaveBeenCalled();
+    });
+
+    it('on 401, invalidates the token and replays the request once with a new token', async () => {
+      mocks.getValidAccessToken.mockResolvedValueOnce('revoked-token').mockResolvedValueOnce('fresh-token');
+      fetchMock.mockResolvedValueOnce(mockFetchResponse(401, { code: 'UNAUTHORIZED' })).mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
+
+      await expect(createClient().getWorkspace('ws1')).resolves.toEqual({ id: 'ws1' });
+
+      expect(mocks.invalidateAccessToken).toHaveBeenCalledExactlyOnceWith('revoked-token');
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const replayHeaders = (fetchMock.mock.calls[1] as [string, RequestInit])[1].headers as Record<string, string>;
+      expect(replayHeaders['Authorization']).toBe('Bearer fresh-token');
+    });
+
+    it('replays a POST body unchanged after a 401', async () => {
+      mocks.getValidAccessToken.mockResolvedValueOnce('revoked-token').mockResolvedValueOnce('fresh-token');
+      fetchMock.mockResolvedValueOnce(mockFetchResponse(401)).mockResolvedValueOnce(mockFetchResponse(201, { id: 'room1' }));
+
+      await createClient().createRoom('ws1', 'Room', 'private');
+
+      const [first, replay] = fetchMock.mock.calls as [string, RequestInit][];
+      expect(replay?.[1].method).toBe('POST');
+      expect(replay?.[1].body).toBe(first?.[1].body);
+    });
+
+    it('throws after a second 401, with a single invalidation', async () => {
+      mocks.getValidAccessToken.mockResolvedValueOnce('revoked-token').mockResolvedValueOnce('fresh-token');
+      fetchMock.mockResolvedValue(mockFetchResponse(401, { message: 'Unauthorized' }));
+
+      await expect(createClient().getWorkspace('ws1')).rejects.toMatchObject({ name: 'MuralApiError', status: 401 });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(mocks.invalidateAccessToken).toHaveBeenCalledTimes(1);
+    });
+
+    it('never resends the rejected token when authentication hands it back', async () => {
+      // e.g. a deduped authentication already in flight when the 401 came in.
+      mocks.getValidAccessToken.mockResolvedValue('revoked-token');
+      fetchMock.mockResolvedValue(mockFetchResponse(401));
+
+      await expect(createClient().getWorkspace('ws1')).rejects.toMatchObject({ status: 401 });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not count the 401 replay against the 5xx retry budget', async () => {
+      vi.useFakeTimers();
+      mocks.getValidAccessToken.mockResolvedValueOnce('revoked-token').mockResolvedValue('fresh-token');
+      fetchMock
+        .mockResolvedValueOnce(mockFetchResponse(401))
+        .mockResolvedValueOnce(mockFetchResponse(500))
+        .mockResolvedValueOnce(mockFetchResponse(500))
+        .mockResolvedValueOnce(mockFetchResponse(500))
+        .mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
+
+      const promise = createClient().getWorkspace('ws1');
+      await vi.runAllTimersAsync();
+
+      await expect(promise).resolves.toEqual({ id: 'ws1' });
+      expect(fetchMock).toHaveBeenCalledTimes(5);
     });
 
     it('includes the API error message in thrown client errors', async () => {

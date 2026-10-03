@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { URL, URLSearchParams } from 'node:url';
 
+import { decodeJwtPayload } from './jwt.js';
 import type { AuthorizationParams, OAuthError, OAuthTokens, PKCEChallenge, RefreshTokenParams, TokenExchangeParams } from './types.js';
 
 const MURAL_OAUTH_BASE = 'https://app.mural.co/api/public/v1/authorization/oauth2';
@@ -12,6 +13,68 @@ const TOKEN_FILE_PATH = path.join(os.homedir(), '.mural-mcp-tokens.json');
 // Refresh slightly before the real expiry so a token that would lapse mid-request
 // is renewed proactively instead of failing the next API call with a 401.
 const EXPIRY_MARGIN_MS = 30_000;
+// Lifetime assumed when a token response carries neither expires_in nor a JWT exp.
+const DEFAULT_TOKEN_LIFETIME_MS = 5 * 60_000;
+// Delays between rename attempts: on Windows, replacing a file another process
+// holds open (antivirus, another server reading it) fails transiently.
+const RENAME_RETRY_DELAYS_MS = [50, 100, 200];
+const TRANSIENT_RENAME_ERRORS = new Set(['EPERM', 'EBUSY', 'EACCES']);
+
+/**
+ * Validate a /token response and compute `expires_at`.
+ * Lifetime source, first match wins: `expires_in` (finite, positive, numeric
+ * strings accepted), the JWT `exp` claim of the access token, then a
+ * conservative default. Throws when `access_token` is missing or empty.
+ */
+export function normalizeTokenResponse(data: unknown, previousRefreshToken?: string, now = Date.now()): OAuthTokens {
+  const raw = (data !== null && typeof data === 'object' ? data : {}) as Record<string, unknown>;
+
+  const accessToken = raw.access_token;
+  if (typeof accessToken !== 'string' || accessToken === '') {
+    throw new Error('OAuth token response is missing access_token');
+  }
+
+  let lifetimeMs: number | undefined;
+  const expiresIn = typeof raw.expires_in === 'number' || typeof raw.expires_in === 'string' ? Number(raw.expires_in) : NaN;
+  if (Number.isFinite(expiresIn) && expiresIn > 0) {
+    lifetimeMs = expiresIn * 1000;
+  } else {
+    const exp = decodeJwtPayload(accessToken)?.exp;
+    if (typeof exp === 'number' && Number.isFinite(exp) && exp * 1000 > now) {
+      lifetimeMs = exp * 1000 - now;
+    }
+  }
+  if (lifetimeMs === undefined) {
+    console.warn('OAuth token response has no usable expires_in or JWT exp; assuming a 5 minute lifetime');
+    lifetimeMs = DEFAULT_TOKEN_LIFETIME_MS;
+  }
+
+  const refreshToken = typeof raw.refresh_token === 'string' && raw.refresh_token !== '' ? raw.refresh_token : previousRefreshToken;
+
+  return {
+    access_token: accessToken,
+    token_type: typeof raw.token_type === 'string' && raw.token_type !== '' ? raw.token_type : 'Bearer',
+    expires_in: Math.round(lifetimeMs / 1000),
+    expires_at: now + lifetimeMs,
+    ...(refreshToken !== undefined && { refresh_token: refreshToken }),
+    ...(typeof raw.scope === 'string' && { scope: raw.scope }),
+  };
+}
+
+async function renameWithRetry(from: string, to: string): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await fs.rename(from, to);
+      return;
+    } catch (error) {
+      const delay = RENAME_RETRY_DELAYS_MS[attempt];
+      if (delay === undefined || !TRANSIENT_RENAME_ERRORS.has((error as NodeJS.ErrnoException).code ?? '')) {
+        throw error;
+      }
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
 
 export class MuralOAuth {
   private clientId: string;
@@ -19,6 +82,8 @@ export class MuralOAuth {
   private redirectUri: string;
   private scopes: string[];
   private authenticationPromise: Promise<OAuthTokens> | null = null;
+  // Last access token the API answered 401 to (see invalidateAccessToken).
+  private rejectedAccessToken: string | null = null;
 
   constructor(
     clientId: string,
@@ -62,6 +127,28 @@ export class MuralOAuth {
     return url.toString();
   }
 
+  /** POST to the token endpoint; returns the raw JSON body or throws with the OAuth error. */
+  private async postTokenRequest(params: TokenExchangeParams | RefreshTokenParams, failureLabel: string): Promise<unknown> {
+    const response = await fetch(`${MURAL_OAUTH_BASE}/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'application/json',
+      },
+      body: new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined))),
+    });
+
+    // A gateway error page (502/503) may not be JSON; keep the status-based error.
+    const data: unknown = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const error = data as Partial<OAuthError>;
+      throw new Error(`OAuth token ${failureLabel} failed: ${error.error ?? `HTTP ${response.status}`} - ${error.error_description || 'Unknown error'}`);
+    }
+
+    return data;
+  }
+
   private async exchangeCodeForTokens(code: string, codeVerifier: string): Promise<OAuthTokens> {
     const params: TokenExchangeParams = {
       client_id: this.clientId,
@@ -72,26 +159,7 @@ export class MuralOAuth {
       redirect_uri: this.redirectUri,
     };
 
-    const response = await fetch(`${MURAL_OAUTH_BASE}/token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Accept: 'application/json',
-      },
-      body: new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined))),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      const error = data as OAuthError;
-      throw new Error(`OAuth token exchange failed: ${error.error} - ${error.error_description || 'Unknown error'}`);
-    }
-
-    const tokens = data as OAuthTokens;
-    tokens.expires_at = Date.now() + tokens.expires_in * 1000;
-
-    return tokens;
+    return normalizeTokenResponse(await this.postTokenRequest(params, 'exchange'));
   }
 
   private async refreshAccessToken(refreshToken: string): Promise<OAuthTokens> {
@@ -102,56 +170,65 @@ export class MuralOAuth {
       grant_type: 'refresh_token',
     };
 
-    const response = await fetch(`${MURAL_OAUTH_BASE}/token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Accept: 'application/json',
-      },
-      body: new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined))),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      const error = data as OAuthError;
-      throw new Error(`OAuth token refresh failed: ${error.error} - ${error.error_description || 'Unknown error'}`);
-    }
-
-    const tokens = data as OAuthTokens;
-    tokens.expires_at = Date.now() + tokens.expires_in * 1000;
     // Mural's refresh response may omit refresh_token; keep the previous one so
     // we don't lose refresh capability and force a full interactive re-auth.
-    tokens.refresh_token ??= refreshToken;
-
-    return tokens;
+    return normalizeTokenResponse(await this.postTokenRequest(params, 'refresh'), refreshToken);
   }
 
+  /**
+   * Persist tokens atomically: write a private temp file next to the token
+   * file, then rename it over the target. Concurrent readers (other MCP server
+   * processes share the file) see either the old or the new content, never a
+   * truncated one, and the file is never world-readable, even briefly.
+   */
   private async saveTokens(tokens: OAuthTokens): Promise<void> {
+    const tmpPath = `${TOKEN_FILE_PATH}.${process.pid}.tmp`;
     try {
-      await fs.writeFile(TOKEN_FILE_PATH, JSON.stringify(tokens, null, 2), { mode: 0o600 });
+      // A stale temp file from a crashed run may predate 0o600: `wx` below
+      // guarantees this call creates the file, so `mode` always applies.
+      await fs.rm(tmpPath, { force: true });
+      await fs.writeFile(tmpPath, JSON.stringify(tokens, null, 2), { mode: 0o600, flag: 'wx' });
+      await renameWithRetry(tmpPath, TOKEN_FILE_PATH);
     } catch (error) {
+      await fs.rm(tmpPath, { force: true }).catch(() => undefined);
       console.error('Failed to save tokens:', error);
-      throw new Error('Failed to save authentication tokens');
-    }
-    // writeFile only applies `mode` when creating the file; chmod also tightens
-    // a file left world-readable (0o644) by an earlier version of this server.
-    // Best-effort: some filesystems (network/FUSE mounts, WSL drvfs) reject chmod,
-    // and the tokens are already persisted, so a failure must not discard them.
-    try {
-      await fs.chmod(TOKEN_FILE_PATH, 0o600);
-    } catch (error) {
-      console.warn('Could not restrict token file permissions to 0600:', error);
+      throw new Error('Failed to save authentication tokens', { cause: error });
     }
   }
 
   private async loadTokens(): Promise<OAuthTokens | null> {
     try {
-      const data = await fs.readFile(TOKEN_FILE_PATH, 'utf-8');
-      return JSON.parse(data) as OAuthTokens;
-    } catch (error) {
+      const data: unknown = JSON.parse(await fs.readFile(TOKEN_FILE_PATH, 'utf-8'));
+      if (data === null || typeof data !== 'object' || typeof (data as OAuthTokens).access_token !== 'string' || (data as OAuthTokens).access_token === '') {
+        return null;
+      }
+      // A non-finite expires_at (e.g. null persisted by older versions) is kept:
+      // isUsable() treats it as expired, so the next call refreshes once.
+      return data as OAuthTokens;
+    } catch {
       return null;
     }
+  }
+
+  /** Whether stored tokens can be served: not rejected by the API and valid for at least `marginMs`. */
+  private isUsable(tokens: OAuthTokens | null, marginMs: number): tokens is OAuthTokens & { expires_at: number } {
+    return (
+      tokens !== null &&
+      tokens.access_token !== this.rejectedAccessToken &&
+      typeof tokens.expires_at === 'number' &&
+      Number.isFinite(tokens.expires_at) &&
+      tokens.expires_at > Date.now() + marginMs
+    );
+  }
+
+  /**
+   * Mark an access token as rejected by the API (HTTP 401). It is never served
+   * again from the token file, whatever its expires_at, so the next
+   * authentication picks up a token refreshed by another process, refreshes,
+   * or falls back to the interactive flow.
+   */
+  invalidateAccessToken(token: string): void {
+    this.rejectedAccessToken = token;
   }
 
   private async startCallbackServer(expectedState?: string): Promise<{ code: string; state?: string }> {
@@ -257,9 +334,10 @@ export class MuralOAuth {
   }
 
   private async performAuthentication(): Promise<OAuthTokens> {
-    // Check for existing valid tokens
+    // Check for existing valid tokens. The file is shared with other MCP server
+    // processes, so this read also picks up a token another process refreshed.
     const existingTokens = await this.loadTokens();
-    if (existingTokens && existingTokens.expires_at && existingTokens.expires_at > Date.now() + EXPIRY_MARGIN_MS) {
+    if (this.isUsable(existingTokens, EXPIRY_MARGIN_MS)) {
       return existingTokens;
     }
 
@@ -270,14 +348,22 @@ export class MuralOAuth {
         await this.saveTokens(refreshedTokens);
         return refreshedTokens;
       } catch (error) {
+        // Another process may have refreshed concurrently: if Mural rotates
+        // refresh tokens, ours is now invalid (invalid_grant) but the file
+        // already holds a fresh token.
+        const latestTokens = await this.loadTokens();
+        if (this.isUsable(latestTokens, EXPIRY_MARGIN_MS)) {
+          return latestTokens;
+        }
         // Inside the expiry margin the stored token still works: keep using it
         // rather than blocking on an interactive browser flow over a transient
-        // refresh failure (network error, Mural 5xx).
-        if (existingTokens.expires_at && existingTokens.expires_at > Date.now()) {
+        // refresh failure (network error, Mural 5xx). Never for a token the API
+        // already rejected.
+        if (this.isUsable(existingTokens, 0)) {
           console.warn('Token refresh failed, using the still-valid stored token');
           return existingTokens;
         }
-        console.warn('Token refresh failed, starting new authentication flow');
+        console.warn('Token refresh failed, starting new authentication flow:', error instanceof Error ? error.message : error);
       }
     }
 
