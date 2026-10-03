@@ -10,6 +10,7 @@ vi.mock('fs/promises', () => ({
   default: {
     readFile: vi.fn(),
     writeFile: vi.fn(),
+    chmod: vi.fn(),
     unlink: vi.fn(),
   },
 }));
@@ -138,6 +139,15 @@ describe('MuralOAuth', () => {
 
       await expect(asAny(createOAuth()).refreshAccessToken('old-rt')).rejects.toThrow('OAuth token refresh failed: invalid_grant - Refresh token expired');
     });
+
+    it('keeps the previous refresh_token when the response omits it', async () => {
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: 'new-at', expires_in: 3600 }));
+
+      const tokens = await asAny(createOAuth('secret')).refreshAccessToken('old-rt');
+
+      expect(tokens.access_token).toBe('new-at');
+      expect(tokens.refresh_token).toBe('old-rt');
+    });
   });
 
   describe('token persistence', () => {
@@ -183,6 +193,7 @@ describe('MuralOAuth', () => {
       const stored = mockOAuthTokens({ expires_at: Date.now() - 1000, refresh_token: 'old-rt' });
       vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+      vi.mocked(fs.chmod).mockResolvedValue(undefined);
       fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: 'new-at', refresh_token: 'new-rt', expires_in: 3600 }));
 
       const tokens = await createOAuth('secret').authenticate();
@@ -190,7 +201,53 @@ describe('MuralOAuth', () => {
       expect(tokens.access_token).toBe('new-at');
       const body = fetchMock.mock.calls[0]?.[1]?.body as URLSearchParams;
       expect(body.get('grant_type')).toBe('refresh_token');
-      expect(fs.writeFile).toHaveBeenCalledWith(expect.stringContaining('.mural-mcp-tokens.json'), expect.stringContaining('new-at'));
+      // The token file holds plaintext credentials: it must be written and kept at 0o600.
+      expect(fs.writeFile).toHaveBeenCalledWith(expect.stringContaining('.mural-mcp-tokens.json'), expect.stringContaining('new-at'), { mode: 0o600 });
+      expect(fs.chmod).toHaveBeenCalledWith(expect.stringContaining('.mural-mcp-tokens.json'), 0o600);
+      // Diagnostics must go to stderr, never stdout, to keep the MCP stdio stream clean.
+      // eslint-disable-next-line no-console -- asserting on the console.log spy, not logging
+      expect(console.log).not.toHaveBeenCalled();
+    });
+
+    it('refreshes a token that expires within the safety margin', async () => {
+      // Still valid by raw expiry (+10 s) but inside the 30 s margin → refresh proactively.
+      const stored = mockOAuthTokens({ expires_at: Date.now() + 10_000, refresh_token: 'old-rt' });
+      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
+      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+      vi.mocked(fs.chmod).mockResolvedValue(undefined);
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: 'new-at', refresh_token: 'new-rt', expires_in: 3600 }));
+
+      const tokens = await createOAuth('secret').authenticate();
+
+      expect(tokens.access_token).toBe('new-at');
+      const body = fetchMock.mock.calls[0]?.[1]?.body as URLSearchParams;
+      expect(body.get('grant_type')).toBe('refresh_token');
+    });
+
+    it('falls back to the still-valid stored token when a refresh inside the margin fails', async () => {
+      // +10 s: inside the 30 s margin, so a refresh is attempted, but the token still works.
+      const stored = mockOAuthTokens({ expires_at: Date.now() + 10_000, refresh_token: 'old-rt' });
+      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
+      fetchMock.mockResolvedValue(mockFetchResponse(503, { error: 'server_error' }));
+      const startCallbackServer = vi.spyOn(asAny(MuralOAuth.prototype), 'startCallbackServer');
+
+      await expect(createOAuth('secret').authenticate()).resolves.toEqual(stored);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      // No interactive browser flow for a transient refresh failure.
+      expect(startCallbackServer).not.toHaveBeenCalled();
+    });
+
+    it('keeps refreshed tokens when tightening the file permissions fails', async () => {
+      const stored = mockOAuthTokens({ expires_at: Date.now() - 1000, refresh_token: 'old-rt' });
+      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
+      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+      vi.mocked(fs.chmod).mockRejectedValue(Object.assign(new Error('EPERM'), { code: 'EPERM' }));
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: 'new-at', refresh_token: 'new-rt', expires_in: 3600 }));
+
+      const tokens = await createOAuth('secret').authenticate();
+
+      expect(tokens.access_token).toBe('new-at');
+      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('permissions'), expect.any(Error));
     });
 
     it('getValidAccessToken returns the access token of valid stored tokens', async () => {

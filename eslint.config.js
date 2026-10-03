@@ -21,9 +21,8 @@ export default tseslint.config(
     plugins: { unicorn: eslintPluginUnicorn },
     rules: {
       // MCP stdio transport: stdout carries the JSON-RPC protocol, so only
-      // stderr logging is acceptable. Kept as a warning until the remaining
-      // console.log calls are migrated (issue #1).
-      'no-console': ['warn', { allow: ['error', 'warn'] }],
+      // stderr logging is acceptable.
+      'no-console': ['error', { allow: ['error', 'warn'] }],
       'no-else-return': 'warn',
       'array-callback-return': 'warn',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', destructuredArrayIgnorePattern: '^_' }],
