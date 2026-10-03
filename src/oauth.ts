@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import fs from 'node:fs/promises';
 import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { URL, URLSearchParams } from 'node:url';
@@ -18,6 +19,7 @@ const DEFAULT_TOKEN_LIFETIME_MS = 5 * 60_000;
 // Delays between rename attempts: on Windows, replacing a file another process
 // holds open (antivirus, another server reading it) fails transiently.
 const RENAME_RETRY_DELAYS_MS = [50, 100, 200];
+const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000;
 const TRANSIENT_RENAME_ERRORS = new Set(['EPERM', 'EBUSY', 'EACCES']);
 
 /**
@@ -59,6 +61,87 @@ export function normalizeTokenResponse(data: unknown, previousRefreshToken?: str
     ...(refreshToken !== undefined && { refresh_token: refreshToken }),
     ...(typeof raw.scope === 'string' && { scope: raw.scope }),
   };
+}
+
+export interface CallbackEndpoint {
+  /** Loopback addresses to listen on. */
+  hosts: string[];
+  port: number;
+  pathname: string;
+}
+
+/**
+ * Derive where the local callback server listens from the redirect URI, so a
+ * custom MURAL_REDIRECT_URI (port, path) is honoured. Only plain-HTTP loopback
+ * URIs can be served by this process. `localhost` listens on both 127.0.0.1
+ * and ::1, since browsers may resolve it to either.
+ */
+export function parseRedirectUri(redirectUri: string): CallbackEndpoint {
+  let url: URL;
+  try {
+    url = new URL(redirectUri);
+  } catch (error) {
+    throw new Error(`Invalid redirect URI: ${redirectUri}`, { cause: error });
+  }
+  if (url.protocol !== 'http:') {
+    throw new Error(`The redirect URI must use http:// (the local OAuth callback server cannot serve HTTPS): ${redirectUri}`);
+  }
+
+  const hostsByName: Record<string, string[]> = {
+    localhost: ['127.0.0.1', '::1'],
+    '127.0.0.1': ['127.0.0.1'],
+    '[::1]': ['::1'],
+  };
+  const hosts = hostsByName[url.hostname];
+  if (!hosts) {
+    throw new Error(`The redirect URI must point to localhost, 127.0.0.1 or [::1] (the OAuth callback is received locally): ${redirectUri}`);
+  }
+
+  return { hosts, port: url.port ? Number(url.port) : 80, pathname: url.pathname };
+}
+
+function page(title: string, message: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title></head><body><h1>${title}</h1><p>${message}</p></body></html>`;
+}
+
+// Static pages only: request parameters are never echoed back (no HTML
+// injection on the shared localhost origin).
+const PAGES = {
+  success: page('Authentication successful', 'You can close this window and return to your MCP client.'),
+  error: page('Authentication failed', 'Mural did not grant access. Check the MCP server logs, then try again.'),
+  invalidRequest: page('Invalid request', 'This request does not match the pending authentication.'),
+  alreadyProcessed: page('Already processed', 'Authentication already handled. You can close this window.'),
+  notFound: page('Not found', 'Nothing here.'),
+};
+
+const PAGE_HEADERS = {
+  'Content-Type': 'text/html; charset=utf-8',
+  'Content-Security-Policy': "default-src 'none'",
+  'X-Content-Type-Options': 'nosniff',
+  'Cache-Control': 'no-store',
+  'Referrer-Policy': 'no-referrer',
+};
+
+function sendPage(res: http.ServerResponse, status: number, body: string): void {
+  res.writeHead(status, PAGE_HEADERS);
+  res.end(body);
+}
+
+/** Keep an OAuth `error` value fit for logs and error messages (it is attacker-controllable). */
+function sanitizeOAuthErrorCode(error: string): string {
+  return error.replace(/[^\w.-]/g, '').slice(0, 100) || 'unknown_error';
+}
+
+function listen(handler: http.RequestListener, host: string, port: number): Promise<http.Server> {
+  return new Promise((resolve, reject) => {
+    const server = http.createServer(handler);
+    server.once('error', reject);
+    server.listen(port, host, () => {
+      server.off('error', reject);
+      server.on('error', error => console.error('OAuth callback server error:', error));
+      resolve(server);
+    });
+  });
 }
 
 async function renameWithRetry(from: string, to: string): Promise<void> {
@@ -231,87 +314,111 @@ export class MuralOAuth {
     this.rejectedAccessToken = token;
   }
 
-  private async startCallbackServer(expectedState?: string): Promise<{ code: string; state?: string }> {
+  /**
+   * Wait for the OAuth redirect on the loopback address, port and path of the
+   * redirect URI. Only a callback carrying the expected state ends the flow;
+   * anything else gets a 400 and the server keeps waiting.
+   */
+  private startCallbackServer(expectedState: string, endpoint: CallbackEndpoint = parseRedirectUri(this.redirectUri)): Promise<{ code: string }> {
     return new Promise((resolve, reject) => {
-      let resolved = false;
+      const servers: http.Server[] = [];
+      let settled = false;
 
-      const server = http.createServer((req, res) => {
-        if (req.url?.startsWith('/callback')) {
-          // Prevent multiple resolutions
-          if (resolved) {
-            res.writeHead(200, { 'Content-Type': 'text/html' });
-            res.end('<h1>Already processed</h1><p>Authentication already handled. You can close this window.</p>');
-            return;
-          }
-
-          const url = new URL(req.url, `http://localhost:3000`);
-          const code = url.searchParams.get('code');
-          const state = url.searchParams.get('state');
-          const error = url.searchParams.get('error');
-
-          console.error(`Callback received - Code: ${code ? 'present' : 'missing'}, State: ${state}, Expected: ${expectedState}`);
-
-          if (error) {
-            res.writeHead(400, { 'Content-Type': 'text/html' });
-            res.end(`<h1>Authentication Error</h1><p>${error}</p>`);
-            resolved = true;
-            server.close();
-            reject(new Error(`OAuth error: ${error}`));
-            return;
-          }
-
-          if (!code) {
-            res.writeHead(400, { 'Content-Type': 'text/html' });
-            res.end('<h1>Error</h1><p>No authorization code received</p>');
-            resolved = true;
-            server.close();
-            reject(new Error('No authorization code received'));
-            return;
-          }
-
-          if (expectedState && state !== expectedState) {
-            console.error(`State mismatch - Expected: "${expectedState}", Received: "${state}"`);
-            res.writeHead(400, { 'Content-Type': 'text/html' });
-            res.end(`<h1>Error</h1><p>Invalid state parameter. Expected: ${expectedState}, Got: ${state}</p>`);
-            resolved = true;
-            server.close();
-            reject(new Error(`Invalid state parameter. Expected: ${expectedState}, Got: ${state}`));
-            return;
-          }
-
-          res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.end('<h1>Success!</h1><p>Authentication successful. You can close this window.</p>');
-          resolved = true;
+      const settle = (finish: () => void): void => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timeout);
+        for (const server of servers) {
           server.close();
-          resolve({ code, state: state || undefined });
-        } else {
-          res.writeHead(404, { 'Content-Type': 'text/html' });
-          res.end('<h1>Not Found</h1>');
         }
-      });
+        finish();
+      };
 
-      server.listen(3000, () => {
-        console.error('OAuth callback server started on http://localhost:3000');
-      });
+      // Only ever read by settle(), which cannot run before this line.
+      const timeout = setTimeout(() => settle(() => reject(new Error('Authentication timeout after 5 minutes'))), CALLBACK_TIMEOUT_MS);
 
-      server.on('error', error => {
-        if (!resolved) {
-          resolved = true;
-          reject(error);
+      const handler: http.RequestListener = (req, res) => {
+        const url = new URL(req.url ?? '/', 'http://localhost');
+        if (url.pathname !== endpoint.pathname) {
+          sendPage(res, 404, PAGES.notFound);
+          return;
         }
-      });
+        if (settled) {
+          sendPage(res, 200, PAGES.alreadyProcessed);
+          return;
+        }
 
-      // Add timeout to prevent hanging
-      setTimeout(
-        () => {
-          if (!resolved) {
-            resolved = true;
-            server.close();
-            reject(new Error('Authentication timeout after 5 minutes'));
+        const code = url.searchParams.get('code');
+        const error = url.searchParams.get('error');
+        const stateMatches = url.searchParams.get('state') === expectedState;
+        // Never log the state or code values themselves.
+        console.error(`OAuth callback received - code: ${code ? 'present' : 'missing'}, state: ${stateMatches ? 'match' : 'mismatch'}`);
+
+        // Not the redirect from our authorization request (stray or forged
+        // request): reject it but keep waiting for the real one.
+        if (!stateMatches) {
+          sendPage(res, 400, PAGES.invalidRequest);
+          return;
+        }
+
+        if (error) {
+          sendPage(res, 400, PAGES.error);
+          settle(() => reject(new Error(`OAuth error: ${sanitizeOAuthErrorCode(error)}`)));
+          return;
+        }
+
+        if (!code) {
+          sendPage(res, 400, PAGES.error);
+          settle(() => reject(new Error('No authorization code received')));
+          return;
+        }
+
+        sendPage(res, 200, PAGES.success);
+        settle(() => resolve({ code }));
+      };
+
+      void (async () => {
+        let port = endpoint.port;
+        const bound: string[] = [];
+        for (const host of endpoint.hosts) {
+          let server: http.Server;
+          try {
+            server = await listen(handler, host, port);
+          } catch (error) {
+            const errorCode = (error as NodeJS.ErrnoException).code;
+            // This loopback family is unavailable (e.g. IPv6 disabled in some
+            // WSL/Docker setups): the other one is enough.
+            if (errorCode === 'EADDRNOTAVAIL' || errorCode === 'EAFNOSUPPORT') {
+              continue;
+            }
+            settle(() =>
+              reject(
+                errorCode === 'EADDRINUSE'
+                  ? new Error(`Port ${port} is already in use: cannot receive the OAuth callback for ${this.redirectUri}`, { cause: error })
+                  : error instanceof Error
+                    ? error
+                    : new Error(String(error)),
+              ),
+            );
+            return;
           }
-        },
-        5 * 60 * 1000,
-      );
+          if (settled) {
+            server.close();
+            return;
+          }
+          servers.push(server);
+          port = (server.address() as AddressInfo).port;
+          bound.push(host.includes(':') ? `[${host}]:${port}` : `${host}:${port}`);
+        }
+
+        if (servers.length === 0) {
+          settle(() => reject(new Error(`Could not bind the OAuth callback server to a loopback address (${endpoint.hosts.join(', ')})`)));
+          return;
+        }
+        console.error(`OAuth callback server listening on ${bound.map(address => `http://${address}${endpoint.pathname}`).join(', ')}`);
+      })();
     });
   }
 
@@ -367,7 +474,9 @@ export class MuralOAuth {
       }
     }
 
-    // Start new authentication flow
+    // Start new authentication flow. Validate the redirect URI first: the
+    // local callback server has to listen on it.
+    const callbackEndpoint = parseRedirectUri(this.redirectUri);
     const pkce = this.generatePKCEChallenge();
     const state = randomBytes(16).toString('hex');
     const authUrl = this.generateAuthorizationUrl(pkce, state);
@@ -377,7 +486,7 @@ export class MuralOAuth {
     console.error('\nWaiting for authentication callback...');
 
     // Start callback server and wait for response
-    const callbackPromise = this.startCallbackServer(state);
+    const callbackPromise = this.startCallbackServer(state, callbackEndpoint);
 
     // Open browser automatically if possible
     const { spawn } = await import('node:child_process');

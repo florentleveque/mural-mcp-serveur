@@ -16,9 +16,9 @@ vi.mock('fs/promises', () => ({
   },
 }));
 
-// The interactive parts of the flow (authenticate() full browser flow,
-// startCallbackServer, browser spawn) are intentionally out of unit test
-// scope: they require a real HTTP server and a browser.
+// The browser spawn of the interactive flow is out of unit test scope; the
+// local callback server is tested against a real HTTP server in
+// oauth-callback.test.ts.
 
 const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/;
 const TOKEN_FILE = expect.stringMatching(/\.mural-mcp-tokens\.json$/);
@@ -407,6 +407,14 @@ describe('MuralOAuth', () => {
 
       expect(tokens.access_token).toBe('new-at');
       expect(Number.isFinite(tokens.expires_at)).toBe(true);
+    });
+
+    it('rejects a non-loopback or HTTPS redirect URI before starting the interactive flow', async () => {
+      const startCallbackServer = vi.spyOn(asAny(MuralOAuth.prototype), 'startCallbackServer');
+
+      await expect(new MuralOAuth('client-id', 'secret', 'https://example.com/callback').authenticate()).rejects.toThrow('must use http://');
+      expect(startCallbackServer).not.toHaveBeenCalled();
+      expect(console.error).not.toHaveBeenCalledWith(expect.stringContaining('open the following URL'));
     });
 
     it('getValidAccessToken returns the access token of valid stored tokens', async () => {
