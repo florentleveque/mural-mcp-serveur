@@ -125,6 +125,8 @@ MURAL_CLIENT_SECRET=your_client_secret_here
 MURAL_REDIRECT_URI=http://localhost:3000/callback
 ```
 
+> `MURAL_REDIRECT_URI` also decides where the local OAuth callback server listens (port and path). It must be an `http://` URI on `localhost`, `127.0.0.1` or `[::1]`, registered as-is in your Mural app. The callback server only listens on the loopback interface.
+
 > Both `MURAL_CLIENT_ID` **and** `MURAL_CLIENT_SECRET` are required: Mural mandates client authentication (the secret) on every token exchange — there is no public-client / PKCE-without-secret mode.
 
 ### Mural OAuth App Setup (step by step)
@@ -227,7 +229,8 @@ Assistant: I'll list your Mural workspaces using the list-workspaces tool.
 ## Security Considerations
 
 - **PKCE**: Uses Proof Key for Code Exchange for enhanced OAuth security
-- **Token Storage**: Tokens are stored locally in the user's home directory
+- **Token Storage**: Tokens are stored locally in the user's home directory (`~/.mural-mcp-tokens.json`, mode `0600`, written atomically so several MCP clients can share it)
+- **Callback Server**: The temporary OAuth callback server listens on loopback only, never echoes request parameters, and ignores callbacks that do not carry the expected `state`
 - **HTTPS**: All API communications use HTTPS
 - **Scope Limitation**: Requests only necessary OAuth scopes
 
@@ -242,14 +245,15 @@ Assistant: I'll list your Mural workspaces using the list-workspaces tool.
 ### Connection Issues
 
 1. **Network**: Ensure you can reach `https://app.mural.co`
-2. **Firewall**: Port 3000 must be available for OAuth callback
+2. **Firewall**: The redirect URI port (3000 by default) must be free on localhost for the OAuth callback
 3. **Test Connection**: Use the `test-connection` tool to verify API access
 
 ### Common Error Messages
 
 - `Missing required environment variable: MURAL_CLIENT_ID`: Set the required environment variable
 - `OAuth token exchange failed`: Check your client credentials and redirect URI
-- `Mural API request failed: HTTP 401`: Token expired or invalid, clear auth and re-authenticate
+- `Mural API request failed: HTTP 401`: The token was rejected even after one automatic retry with a new token; clear auth and re-authenticate
+- `Port 3000 is already in use`: Another process holds the redirect URI port; free it or change `MURAL_REDIRECT_URI` (and your Mural app) to another port
 - `Mural API request failed: HTTP 403`: Insufficient permissions or invalid scope
 
 ## Development

@@ -82,7 +82,9 @@ Module-level (exported for tests), used by both `exchangeCodeForTokens` and `ref
 
 The JWT decoding currently inlined in `MuralClient.getUserScopes` moves to a small shared helper `decodeJwtPayload(token): Record<string, unknown> | null` (in `oauth.ts`), reused by both.
 
-Both `/token` calls share a private `postTokenRequest(params, label)` to remove the duplicated fetch/error handling. Its error carries the OAuth `error` code (`OAuthTokenError` with an `error` field) so §3 can detect `invalid_grant` without matching on message text.
+Both `/token` calls share a private `postTokenRequest(params, label)` to remove the duplicated fetch/error handling. A non-JSON error body (gateway page) yields `HTTP <status>` as the error code.
+
+> Implementation note: no typed `OAuthTokenError` — §3B re-reads the file after _any_ refresh failure, so there is no need to single out `invalid_grant`.
 
 ### `loadTokens`
 
@@ -122,8 +124,8 @@ await fs.rename(tmp, TOKEN_FILE_PATH);
 
 ### 3B. Re-read around refresh — `performAuthentication`
 
-1. Before calling `/token` with `refresh_token`: re-read the file. If it now holds a usable token (another process refreshed meanwhile) → return it, no network call.
-2. If the refresh fails with `invalid_grant`: re-read once more. If the file holds a usable token → return it; else fall back to the browser flow (current behaviour).
+1. Before calling `/token` with `refresh_token`: the file is read at the start of `performAuthentication`, right before the refresh, so a token another process refreshed meanwhile is already picked up there (no extra read needed).
+2. If the refresh fails (`invalid_grant` or any other error): re-read once more. If the file holds a usable token → return it; else the still-valid stored token (PR #13 fallback, never a rejected token); else the browser flow.
 3. No lock file for now (more code, stale-lock edge cases). Revisit only if refresh-token rotation is confirmed (open question 1).
 
 ### Tests
@@ -153,7 +155,7 @@ await fs.rename(tmp, TOKEN_FILE_PATH);
 
 Defaults stay `http://localhost:3000/callback` → behaviour unchanged for existing setups. This honours the user's configured value; it does not introduce a dynamic port (decision from #1, point 5, still stands).
 
-For tests, `startCallbackServer` accepts an optional `{ port?: number }` override; port `0` means "ephemeral" — the first listener binds port 0, the second reuses the port actually assigned.
+For tests, `startCallbackServer(expectedState, endpoint?)` accepts the parsed endpoint (defaults to `parseRedirectUri(this.redirectUri)`); tests pass a free port. Port `0` also works: the first listener binds it, the next one reuses the port actually assigned.
 
 ### 4b. Loopback only, dual-stack
 

@@ -39,14 +39,17 @@ This is a Model Context Protocol (MCP) server that provides integration with the
 
 2. **OAuth Handler** (`src/oauth.ts`) - Manages authentication:
    - Implements OAuth 2.0 with PKCE (Proof Key for Code Exchange)
-   - Stores tokens in `~/.mural-mcp-tokens.json`
-   - Automatically refreshes expired tokens
-   - Runs temporary HTTP server on port 3000 for OAuth callback
+   - Stores tokens in `~/.mural-mcp-tokens.json` (atomic write: `0o600` temp file + `rename`; the file is shared by every MCP server process)
+   - Validates token responses (`normalizeTokenResponse`: `access_token` required, expiry from `expires_in` → JWT `exp` → 5 min default)
+   - Automatically refreshes expired tokens; re-reads the token file after a failed refresh in case another process refreshed
+   - `invalidateAccessToken` marks a token rejected by the API (401) so it is never served again
+   - Runs a temporary HTTP callback server on the port/path of the redirect URI, loopback only (`127.0.0.1` + `::1`)
 
 3. **Mural API Client** (`src/mural-client.ts`) - API interaction:
    - Makes authenticated requests to `https://app.mural.co/api/public/v1`
    - Handles token refresh automatically
    - Covers the full read/write surface (workspaces, rooms, templates, murals CRUD, widgets), paginating list endpoints via the API cursor
+   - Retries a request once on HTTP 401 after invalidating the rejected token (403 is never retried)
    - Throws a typed `MuralApiError` (carrying `status`, `errorCode`, `apiMessage`) instead of message-based errors, and derives 429 wait times from the `x-ratelimit-*-reset` headers
 
 4. **Compact projections** (`src/projections.ts`) - Trims raw API objects down to the fields an LLM needs (`toCompact*`/`project*`), keeping responses small. Each read tool exposes a `verbose` flag to opt back into the full raw object.
@@ -66,7 +69,7 @@ Required:
 
 Optional:
 
-- `MURAL_REDIRECT_URI` - Defaults to `http://localhost:3000/callback`
+- `MURAL_REDIRECT_URI` - Defaults to `http://localhost:3000/callback`; must be an `http://` loopback URI, and also sets the local callback server port/path
 
 ### Authentication Flow
 
