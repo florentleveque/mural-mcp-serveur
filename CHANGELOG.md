@@ -1,3 +1,9 @@
+## [1.3.1](https://github.com/florentleveque/mural-mcp-serveur/compare/v1.3.0...v1.3.1) (2026-10-03)
+
+### Bug Fixes
+
+* **oauth:** harden the OAuth flow (stdio logging, token file perms, refresh, expiry) ([#13](https://github.com/florentleveque/mural-mcp-serveur/issues/13)) ([7f0648e](https://github.com/florentleveque/mural-mcp-serveur/commit/7f0648ef2bd7d3b19824370f66cb517f8b62c497)), closes [#1](https://github.com/florentleveque/mural-mcp-serveur/issues/1)
+
 ## [1.3.0](https://github.com/florentleveque/mural-mcp-serveur/compare/v1.2.0...v1.3.0) (2026-06-08)
 
 ### Features
