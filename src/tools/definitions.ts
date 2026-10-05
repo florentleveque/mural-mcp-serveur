@@ -45,3 +45,18 @@ export function defineTool<Schema extends z.ZodObject>(
     handler: (params, context) => tool.handler(params as z.output<Schema>, context),
   };
 }
+
+export const READ_ONLY: ToolAnnotations = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: true,
+};
+
+/** Adds something new; calling twice adds it twice. */
+export const CREATES: ToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: true,
+};

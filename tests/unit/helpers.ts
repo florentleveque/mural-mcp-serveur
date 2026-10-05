@@ -4,6 +4,11 @@
  * filesystem access is mocked through vi.mock('fs/promises').
  */
 
+import { vi } from 'vitest';
+
+import type { MuralClient } from '../../src/mural-client.js';
+import type { ToolContext, ToolDefinition } from '../../src/tools/definitions.js';
+
 /**
  * Build a fetch Response. Pass `null` as body for empty-body responses
  * (e.g. 204 No Content).
@@ -31,4 +36,22 @@ export function mockOAuthTokens(overrides: Record<string, unknown> = {}) {
       'workspaces:read murals:read murals:write rooms:read rooms:write templates:read templates:write identity:read',
     ...overrides,
   };
+}
+
+/** A ToolContext over a stub client that only has the methods a test gives it. */
+export function toolContext(client: Record<string, unknown>): ToolContext {
+  return { client: client as unknown as MuralClient, clearAuthentication: vi.fn() };
+}
+
+/** Validate `args` the way the server does, run the handler and parse its JSON payload. */
+export async function callTool(
+  tools: ToolDefinition[],
+  name: string,
+  args: unknown,
+  context: ToolContext,
+) {
+  const tool = tools.find((candidate) => candidate.name === name);
+  if (!tool) throw new Error(`No tool named ${name}`);
+  const response = await tool.handler(tool.inputSchema.parse(args), context);
+  return JSON.parse(response.content[0]?.text ?? 'null');
 }

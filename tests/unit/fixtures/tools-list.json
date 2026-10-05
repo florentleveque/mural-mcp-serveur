@@ -1,46 +1,141 @@
 [
   {
     "name": "list-workspaces",
+    "title": "List Workspaces",
     "description": "List all workspaces the authenticated user has access to. Compact view keeps: id, name. Pass verbose=true for the full raw objects (description, image, locked, suspended, createdOn, ...).",
     "inputSchema": {
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "limit": {
-          "type": "number",
           "description": "Maximum number of workspaces to return (optional)",
+          "type": "number",
           "minimum": 1,
           "maximum": 100
         },
         "offset": {
-          "type": "number",
           "description": "Number of workspaces to skip for pagination (optional)",
+          "type": "number",
           "minimum": 0
         },
         "verbose": {
-          "type": "boolean",
-          "description": "If true, return the full raw objects instead of the compact view (optional, defaults to false)"
+          "default": false,
+          "description": "If true, return the full raw objects instead of the compact view (optional, defaults to false)",
+          "type": "boolean"
         }
       },
       "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
     }
   },
   {
     "name": "get-workspace",
+    "title": "Get Workspace",
     "description": "Get detailed information about a specific workspace. Compact view keeps: id, name. Pass verbose=true for the full raw object (description, image, locked, suspended, createdOn, ...).",
     "inputSchema": {
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "workspaceId": {
           "type": "string",
+          "minLength": 1,
           "description": "The unique identifier of the workspace"
         },
         "verbose": {
-          "type": "boolean",
-          "description": "If true, return the full raw object instead of the compact view (optional, defaults to false)"
+          "default": false,
+          "description": "If true, return the full raw object instead of the compact view (optional, defaults to false)",
+          "type": "boolean"
         }
       },
       "required": ["workspaceId"],
       "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "list-workspace-rooms",
+    "title": "List Workspace Rooms",
+    "description": "List all rooms within a specific workspace (use a room id with list-room-boards). Returns all pages. Compact view keeps: id, name, type, workspaceId. Pass verbose=true for the full raw objects (confidential, isMember, description, favorite, createdBy, ...).",
+    "inputSchema": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The unique identifier of the workspace"
+        },
+        "openOnly": {
+          "default": false,
+          "description": "If true, list only open (discoverable) rooms instead of all rooms (optional, defaults to false)",
+          "type": "boolean"
+        },
+        "verbose": {
+          "default": false,
+          "description": "If true, return the full raw objects instead of the compact view (optional, defaults to false)",
+          "type": "boolean"
+        }
+      },
+      "required": ["workspaceId"],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "create-room",
+    "title": "Create Room",
+    "description": "Create a new room in a workspace",
+    "inputSchema": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The unique identifier of the workspace"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of the new room"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["open", "private"],
+          "description": "Room visibility: \"open\" (discoverable by workspace members) or \"private\""
+        },
+        "description": {
+          "description": "Optional description of the room",
+          "type": "string"
+        },
+        "confidential": {
+          "description": "Optional. Mark the room as confidential (defaults to false)",
+          "type": "boolean"
+        }
+      },
+      "required": ["workspaceId", "name", "type"],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true
     }
   },
   {
@@ -109,29 +204,6 @@
     }
   },
   {
-    "name": "list-workspace-rooms",
-    "description": "List all rooms within a specific workspace (use a room id with list-room-boards). Returns all pages. Compact view keeps: id, name, type, workspaceId. Pass verbose=true for the full raw objects (confidential, isMember, description, favorite, createdBy, ...).",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "workspaceId": {
-          "type": "string",
-          "description": "The unique identifier of the workspace"
-        },
-        "openOnly": {
-          "type": "boolean",
-          "description": "If true, list only open (discoverable) rooms instead of all rooms (optional, defaults to false)"
-        },
-        "verbose": {
-          "type": "boolean",
-          "description": "If true, return the full raw objects instead of the compact view (optional, defaults to false)"
-        }
-      },
-      "required": ["workspaceId"],
-      "additionalProperties": false
-    }
-  },
-  {
     "name": "list-workspace-templates",
     "description": "List a workspace's templates (default + custom), or search them by name. Returns all pages. Compact view keeps: id, name, description, type. Pass verbose=true for the full raw objects (thumbUrl, viewLink, createdBy, updatedOn, ...).",
     "inputSchema": {
@@ -182,38 +254,6 @@
         }
       },
       "required": ["templateId", "title", "roomId"],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "create-room",
-    "description": "Create a new room in a workspace",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "workspaceId": {
-          "type": "string",
-          "description": "The unique identifier of the workspace"
-        },
-        "name": {
-          "type": "string",
-          "description": "Name of the new room"
-        },
-        "type": {
-          "type": "string",
-          "enum": ["open", "private"],
-          "description": "Room visibility: \"open\" (discoverable by workspace members) or \"private\""
-        },
-        "description": {
-          "type": "string",
-          "description": "Optional description of the room"
-        },
-        "confidential": {
-          "type": "boolean",
-          "description": "Optional. Mark the room as confidential (defaults to false)"
-        }
-      },
-      "required": ["workspaceId", "name", "type"],
       "additionalProperties": false
     }
   },

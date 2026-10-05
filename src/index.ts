@@ -11,14 +11,10 @@ import { MuralClient } from './mural-client.js';
 import { MuralOAuth } from './oauth.js';
 import {
   projectBoards,
-  projectRooms,
   projectTemplates,
   projectWidgets,
-  projectWorkspaces,
   toCompactBoard,
-  toCompactRoom,
   toCompactWidget,
-  toCompactWorkspace,
 } from './projections.js';
 import type { ToolContext, ToolDefinition } from './tools/definitions.js';
 import { toolDefinitions } from './tools/registry.js';
@@ -98,54 +94,6 @@ async function main() {
       tools: [
         ...toolDefinitions.map(toListedTool),
         {
-          name: 'list-workspaces',
-          description:
-            'List all workspaces the authenticated user has access to. Compact view keeps: id, name. Pass verbose=true for the full raw objects (description, image, locked, suspended, createdOn, ...).',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              limit: {
-                type: 'number',
-                description: 'Maximum number of workspaces to return (optional)',
-                minimum: 1,
-                maximum: 100,
-              },
-              offset: {
-                type: 'number',
-                description: 'Number of workspaces to skip for pagination (optional)',
-                minimum: 0,
-              },
-              verbose: {
-                type: 'boolean',
-                description:
-                  'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
-              },
-            },
-            additionalProperties: false,
-          },
-        },
-        {
-          name: 'get-workspace',
-          description:
-            'Get detailed information about a specific workspace. Compact view keeps: id, name. Pass verbose=true for the full raw object (description, image, locked, suspended, createdOn, ...).',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              workspaceId: {
-                type: 'string',
-                description: 'The unique identifier of the workspace',
-              },
-              verbose: {
-                type: 'boolean',
-                description:
-                  'If true, return the full raw object instead of the compact view (optional, defaults to false)',
-              },
-            },
-            required: ['workspaceId'],
-            additionalProperties: false,
-          },
-        },
-        {
           name: 'test-connection',
           description: 'Test the connection to Mural API and verify authentication',
           inputSchema: {
@@ -216,32 +164,6 @@ async function main() {
           },
         },
         {
-          name: 'list-workspace-rooms',
-          description:
-            'List all rooms within a specific workspace (use a room id with list-room-boards). Returns all pages. Compact view keeps: id, name, type, workspaceId. Pass verbose=true for the full raw objects (confidential, isMember, description, favorite, createdBy, ...).',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              workspaceId: {
-                type: 'string',
-                description: 'The unique identifier of the workspace',
-              },
-              openOnly: {
-                type: 'boolean',
-                description:
-                  'If true, list only open (discoverable) rooms instead of all rooms (optional, defaults to false)',
-              },
-              verbose: {
-                type: 'boolean',
-                description:
-                  'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
-              },
-            },
-            required: ['workspaceId'],
-            additionalProperties: false,
-          },
-        },
-        {
           name: 'list-workspace-templates',
           description:
             "List a workspace's templates (default + custom), or search them by name. Returns all pages. Compact view keeps: id, name, description, type. Pass verbose=true for the full raw objects (thumbUrl, viewLink, createdBy, updatedOn, ...).",
@@ -296,39 +218,6 @@ async function main() {
               },
             },
             required: ['templateId', 'title', 'roomId'],
-            additionalProperties: false,
-          },
-        },
-        {
-          name: 'create-room',
-          description: 'Create a new room in a workspace',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              workspaceId: {
-                type: 'string',
-                description: 'The unique identifier of the workspace',
-              },
-              name: {
-                type: 'string',
-                description: 'Name of the new room',
-              },
-              type: {
-                type: 'string',
-                enum: ['open', 'private'],
-                description:
-                  'Room visibility: "open" (discoverable by workspace members) or "private"',
-              },
-              description: {
-                type: 'string',
-                description: 'Optional description of the room',
-              },
-              confidential: {
-                type: 'boolean',
-                description: 'Optional. Mark the room as confidential (defaults to false)',
-              },
-            },
-            required: ['workspaceId', 'name', 'type'],
             additionalProperties: false,
           },
         },
@@ -939,34 +828,6 @@ async function main() {
       }
 
       switch (name) {
-        case 'list-workspaces': {
-          const schema = z.object({
-            limit: z.number().min(1).max(100).optional(),
-            offset: z.number().min(0).optional(),
-            verbose: verboseFlag,
-          });
-
-          const { limit, offset, verbose } = schema.parse(args || {});
-          const workspaces = await muralClient.getWorkspaces(limit, offset);
-
-          return jsonResult({
-            workspaces: verbose ? workspaces : projectWorkspaces(workspaces),
-            count: workspaces.length,
-          });
-        }
-
-        case 'get-workspace': {
-          const schema = z.object({
-            workspaceId: z.string().min(1),
-            verbose: verboseFlag,
-          });
-
-          const { workspaceId, verbose } = schema.parse(args);
-          const workspace = await muralClient.getWorkspace(workspaceId);
-
-          return jsonResult({ workspace: verbose ? workspace : toCompactWorkspace(workspace) });
-        }
-
         case 'test-connection': {
           const isConnected = await muralClient.testConnection();
 
@@ -1028,24 +889,6 @@ async function main() {
           });
         }
 
-        case 'list-workspace-rooms': {
-          const schema = z.object({
-            workspaceId: z.string().min(1),
-            openOnly: z.boolean().optional().default(false),
-            verbose: verboseFlag,
-          });
-
-          const { workspaceId, openOnly, verbose } = schema.parse(args);
-          const rooms = await muralClient.getWorkspaceRooms(workspaceId, openOnly);
-
-          return jsonResult({
-            rooms: verbose ? rooms : projectRooms(rooms),
-            count: rooms.length,
-            workspaceId,
-            openOnly,
-          });
-        }
-
         case 'list-workspace-templates': {
           const schema = z.object({
             workspaceId: z.string().min(1),
@@ -1088,30 +931,6 @@ async function main() {
           return jsonResult({
             mural: toCompactBoard(mural),
             message: `Created mural "${title}" from template ${templateId} in room ${roomId}`,
-          });
-        }
-
-        case 'create-room': {
-          const schema = z.object({
-            workspaceId: z.string().min(1),
-            name: z.string().min(1),
-            type: z.enum(['open', 'private']),
-            description: z.string().optional(),
-            confidential: z.boolean().optional(),
-          });
-
-          const { workspaceId, name, type, description, confidential } = schema.parse(args);
-          const room = await muralClient.createRoom(
-            workspaceId,
-            name,
-            type,
-            description,
-            confidential,
-          );
-
-          return jsonResult({
-            room: toCompactRoom(room),
-            message: `Created ${type} room "${name}" in workspace ${workspaceId}`,
           });
         }
 
