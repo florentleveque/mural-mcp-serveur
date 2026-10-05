@@ -15,9 +15,11 @@ vi.mock('fs/promises', () => ({
   },
 }));
 
-// The interactive parts of the flow (authenticate() full browser flow,
-// startCallbackServer, browser spawn) are intentionally out of unit test
-// scope: they require a real HTTP server and a browser.
+// The browser is never opened: spawn is stubbed. The callback server itself is
+// covered in oauth-callback.test.ts, which mocks node:http.
+vi.mock('node:child_process', () => ({
+  spawn: vi.fn(() => ({ on: vi.fn(), unref: vi.fn() })),
+}));
 
 const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/;
 
@@ -79,6 +81,17 @@ describe('MuralOAuth', () => {
       expect(url.searchParams.get('state')).toBe('my-state');
       expect(url.searchParams.get('scope')).toContain('murals:write');
     });
+
+    it('requests the default scope set when none is given', () => {
+      const oauth = createOAuth();
+      const pkce = asAny(oauth).generatePKCEChallenge();
+
+      const url = new URL(asAny(oauth).generateAuthorizationUrl(pkce));
+
+      expect(url.searchParams.get('scope')).toBe(
+        'workspaces:read rooms:read rooms:write murals:read murals:write templates:read templates:write identity:read',
+      );
+    });
   });
 
   describe('exchangeCodeForTokens', () => {
@@ -137,6 +150,14 @@ describe('MuralOAuth', () => {
         'OAuth token exchange failed: invalid_client - Client authentication failed',
       );
     });
+
+    it('falls back to "Unknown error" when the failure has no description', async () => {
+      fetchMock.mockResolvedValue(mockFetchResponse(400, { error: 'invalid_client' }));
+
+      await expect(
+        asAny(createOAuth()).exchangeCodeForTokens('auth-code', 'verifier'),
+      ).rejects.toThrow('OAuth token exchange failed: invalid_client - Unknown error');
+    });
   });
 
   describe('refreshAccessToken', () => {
@@ -167,6 +188,14 @@ describe('MuralOAuth', () => {
 
       await expect(asAny(createOAuth()).refreshAccessToken('old-rt')).rejects.toThrow(
         'OAuth token refresh failed: invalid_grant - Refresh token expired',
+      );
+    });
+
+    it('falls back to "Unknown error" when the refresh failure has no description', async () => {
+      fetchMock.mockResolvedValue(mockFetchResponse(400, { error: 'invalid_grant' }));
+
+      await expect(asAny(createOAuth()).refreshAccessToken('old-rt')).rejects.toThrow(
+        'OAuth token refresh failed: invalid_grant - Unknown error',
       );
     });
 
@@ -311,6 +340,55 @@ describe('MuralOAuth', () => {
         expect.stringContaining('permissions'),
         expect.any(Error),
       );
+    });
+
+    it('refreshes a token expiring exactly at the safety margin', async () => {
+      vi.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
+      try {
+        const stored = mockOAuthTokens({
+          expires_at: Date.now() + 30_000,
+          refresh_token: 'old-rt',
+        });
+        vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
+        vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+        vi.mocked(fs.chmod).mockResolvedValue(undefined);
+        fetchMock.mockResolvedValue(
+          mockFetchResponse(200, {
+            access_token: 'new-at',
+            refresh_token: 'new-rt',
+            expires_in: 3600,
+          }),
+        );
+
+        const tokens = await createOAuth('secret').authenticate();
+
+        expect(tokens.access_token).toBe('new-at');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('runs the browser flow when no tokens are stored', async () => {
+      vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'));
+      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+      vi.mocked(fs.chmod).mockResolvedValue(undefined);
+      vi.spyOn(asAny(MuralOAuth.prototype), 'startCallbackServer').mockResolvedValue({
+        code: 'auth-code',
+      });
+      fetchMock.mockResolvedValue(
+        mockFetchResponse(200, {
+          access_token: 'fresh-at',
+          refresh_token: 'fresh-rt',
+          expires_in: 3600,
+        }),
+      );
+
+      const tokens = await createOAuth('secret').authenticate();
+
+      expect(tokens.access_token).toBe('fresh-at');
+      const body = fetchMock.mock.calls[0]?.[1]?.body as URLSearchParams;
+      expect(body.get('grant_type')).toBe('authorization_code');
+      expect(body.get('code')).toBe('auth-code');
     });
 
     it('getValidAccessToken returns the access token of valid stored tokens', async () => {

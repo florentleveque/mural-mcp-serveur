@@ -95,6 +95,7 @@ export class MuralOAuth {
         Accept: 'application/json',
       },
       body: new URLSearchParams(
+        // Stryker disable next-line MethodExpression,ConditionalExpression: params never holds undefined (the optional secret is spread in only when set), so the filter cannot change the body.
         Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined)),
       ),
     });
@@ -129,6 +130,7 @@ export class MuralOAuth {
         Accept: 'application/json',
       },
       body: new URLSearchParams(
+        // Stryker disable next-line MethodExpression,ConditionalExpression: params never holds undefined (the optional secret is spread in only when set), so the filter cannot change the body.
         Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined)),
       ),
     });
