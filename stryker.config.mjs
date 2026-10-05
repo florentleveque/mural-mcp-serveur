@@ -13,10 +13,10 @@ export default {
 
   // Scope: logic code, where a surviving mutant is a genuine test gap.
   //
-  // `src/index.ts` is excluded for now: it is tool wiring, mostly description
-  // strings and JSON schemas, so editing any of its lines would trip the PR gate
-  // on StringLiteral survivors the author did not create. It comes back in, file
-  // by file, once its tools move to definitions with their own tests.
+  // `src/index.ts` is excluded: it is the stdio entry point (environment
+  // checks, signal handlers, `main()`), run once per test process at import,
+  // and it goes away with the stdio transport. The tools it used to declare
+  // live in `src/tools/`, which is in scope.
   // `src/types.ts` is type-only: nothing to mutate.
   //
   // `!` ordering is load-bearing: Stryker applies these as set/unset in

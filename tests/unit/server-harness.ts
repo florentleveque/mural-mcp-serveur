@@ -44,12 +44,8 @@ export class LoopbackTransport {
   }
 }
 
-/** Load src/index.ts (its main() connects to `transport`) and run the MCP handshake. */
-export async function openSession(transport: LoopbackTransport): Promise<void> {
-  await import('../../src/index.js');
-  while (!transport.onmessage) {
-    await new Promise((resolve) => setTimeout(resolve, 1));
-  }
+/** Run the MCP handshake over a transport a server is connected to; returns the initialize result. */
+export async function initialize(transport: LoopbackTransport): Promise<JsonRpcMessage['result']> {
   const init = await transport.request('initialize', {
     protocolVersion: '2025-06-18',
     capabilities: {},
@@ -57,4 +53,14 @@ export async function openSession(transport: LoopbackTransport): Promise<void> {
   });
   if (init.error) throw new Error(`initialize failed: ${init.error.message}`);
   transport.notify('notifications/initialized');
+  return init.result;
+}
+
+/** Load src/index.ts (its main() connects to `transport`) and run the MCP handshake. */
+export async function openSession(transport: LoopbackTransport): Promise<void> {
+  await import('../../src/index.js');
+  while (!transport.onmessage) {
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+  await initialize(transport);
 }

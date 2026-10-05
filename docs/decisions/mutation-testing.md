@@ -38,10 +38,10 @@ is what coverage cannot see.
 
 `stryker.config.mjs` mutates `src/**/*.ts` except:
 
-- `src/index.ts`: tool wiring, mostly description strings and JSON schemas.
-  Editing any of its lines would trip the gate on StringLiteral survivors the
-  author did not create. It comes back in, file by file, once its tools move to
-  definitions with their own tests.
+- `src/index.ts`: the stdio entry point (environment checks, signal handlers,
+  `main()`), run once per test process at import, and due to go with the stdio
+  transport. The tools it used to declare moved to `src/tools/`, which is in
+  scope with its own tests.
 - `src/types.ts`: type-only, nothing to mutate.
 
 The `!` patterns are applied in order (set, then unset), and the gate's

@@ -258,7 +258,9 @@ Assistant: I'll list your Mural workspaces using the list-workspaces tool.
 ```
 mural-mcp-serveur/
 ├── src/
-│   ├── index.ts          # Main MCP server (tool definitions + handlers)
+│   ├── index.ts          # stdio entry point
+│   ├── server.ts         # McpServer with every tool registered
+│   ├── tools/            # Tool definitions (zod schemas, annotations, handlers)
 │   ├── oauth.ts          # OAuth 2.0 implementation
 │   ├── mural-client.ts   # Mural API client
 │   └── types.ts          # TypeScript interfaces

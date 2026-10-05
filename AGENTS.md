@@ -40,8 +40,14 @@ predates this rule and is an accepted exception; don't imitate it.
 
 ## Architecture
 
-- `src/index.ts` is the stdio MCP server: it declares every tool's JSON Schema in
-  the `tools/list` handler and dispatches `tools/call` through one `switch`.
+- Each tool is a `ToolDefinition` (`src/tools/definitions.ts`): zod input
+  schema, title, annotations, and a handler that receives a `ToolContext` per
+  call. `src/tools/registry.ts` lists them in exposed order, `src/server.ts`
+  registers them on an `McpServer` (the SDK validates arguments against the
+  schema), and `src/index.ts` connects that server to stdio.
+- Annotate with the shared `READ_ONLY`, `CREATES` or `OVERWRITES` unless a tool
+  fits none of them. A closed object is `z.strictObject`, so the exposed schema
+  says `additionalProperties: false` and the server enforces it.
 - Every Mural API request goes through `MuralClient` (`src/mural-client.ts`).
   Failures surface as the typed `MuralApiError` (`status`, `errorCode`,
   `apiMessage`), never as a message to parse; 429 waits come from the
@@ -173,7 +179,9 @@ and keeps the tool set coherent: consistent naming, no needless duplication.
 
 `tests/unit/fixtures/tools-list.json` holds the exposed `tools/list` answer and
 `tests/unit/tool-schemas.test.ts` compares the server against it. Edit it by
-hand, in the commit that changes the surface, and say so in the message.
+hand, in the commit that changes the surface, and say so in the message. The
+same test checks the surface against `tools-list.handwritten.json`, the last
+hand-written schemas: a floor, never edited to make a test pass.
 
 ## Documentation maintenance
 
