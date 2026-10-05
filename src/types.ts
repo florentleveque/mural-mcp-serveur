@@ -33,7 +33,8 @@ export interface OAuthTokens {
   access_token: string;
   refresh_token?: string;
   token_type: string;
-  expires_in: number;
+  // Not guaranteed by Mural; may also arrive as a numeric string.
+  expires_in?: number | string;
   scope?: string;
   expires_at?: number;
 }
@@ -46,6 +47,8 @@ export interface OAuthTokens {
 export interface MuralTokenProvider {
   getValidAccessToken(): Promise<string>;
   getScopes(): Promise<string[]>;
+  /** Mural answered 401 to `token`: never hand it out again. */
+  invalidateAccessToken(token: string): Promise<void>;
 }
 
 export interface OAuthError {

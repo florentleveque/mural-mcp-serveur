@@ -32,6 +32,11 @@ function asAny(oauth: MuralOAuth): any {
   return oauth as any;
 }
 
+/** An unsigned JWT whose payload is `payload`, as Mural issues access tokens. */
+function jwtWith(payload: unknown): string {
+  return `header.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.signature`;
+}
+
 describe('MuralOAuth', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -211,6 +216,61 @@ describe('MuralOAuth', () => {
     });
   });
 
+  describe('token lifetime', () => {
+    const NOW = 1_000_000_000_000;
+
+    beforeEach(() => {
+      vi.useFakeTimers({ now: NOW, toFake: ['Date'] });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function exchange(body: Record<string, unknown>) {
+      fetchMock.mockResolvedValue(mockFetchResponse(200, body));
+      return asAny(createOAuth()).exchangeCodeForTokens('auth-code', 'verifier');
+    }
+
+    it('accepts an expires_in sent as a numeric string', async () => {
+      const tokens = await exchange({ access_token: 'at', expires_in: '3600' });
+
+      expect(tokens.expires_at).toBe(NOW + 3_600_000);
+    });
+
+    it('falls back to the exp claim of the access token without expires_in', async () => {
+      const tokens = await exchange({ access_token: jwtWith({ exp: NOW / 1000 + 900 }) });
+
+      expect(tokens.expires_at).toBe(NOW + 900_000);
+      expect(console.warn).not.toHaveBeenCalled();
+    });
+
+    it.each<[string, Record<string, unknown>]>([
+      ['no expires_in and an opaque token', { access_token: 'opaque' }],
+      ['a zero expires_in', { access_token: 'opaque', expires_in: 0 }],
+      ['a negative expires_in', { access_token: 'opaque', expires_in: -60 }],
+      ['an infinite expires_in', { access_token: 'opaque', expires_in: 'Infinity' }],
+      ['a null expires_in', { access_token: 'opaque', expires_in: null }],
+      ['an exp claim that is not a number', { access_token: jwtWith({ exp: '900' }) }],
+      ['a token payload that is not JSON', { access_token: 'header.not-json.signature' }],
+    ])('assumes a five-minute lifetime and warns for %s', async (_label, body) => {
+      const tokens = await exchange(body);
+
+      expect(tokens.expires_at).toBe(NOW + 300_000);
+      expect(console.warn).toHaveBeenCalledWith(
+        'Token response has no usable expires_in; assuming the token expires in 5 minutes.',
+      );
+    });
+
+    it('applies the same rule to a refresh response', async () => {
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: 'opaque' }));
+
+      const tokens = await asAny(createOAuth()).refreshAccessToken('old-rt');
+
+      expect(tokens.expires_at).toBe(NOW + 300_000);
+    });
+  });
+
   describe('token persistence', () => {
     it('getStoredTokens parses the token file', async () => {
       const stored = mockOAuthTokens();
@@ -245,11 +305,6 @@ describe('MuralOAuth', () => {
   });
 
   describe('getScopes', () => {
-    /** An unsigned JWT whose payload is `payload`, as Mural issues access tokens. */
-    function jwtWith(payload: unknown): string {
-      return `header.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.signature`;
-    }
-
     function storeTokens(overrides: Record<string, unknown>) {
       vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(mockOAuthTokens(overrides)));
     }
@@ -423,6 +478,87 @@ describe('MuralOAuth', () => {
         const tokens = await createOAuth('secret').authenticate();
 
         expect(tokens.access_token).toBe('new-at');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('refreshes a stored token Mural rejected, even before its expiry', async () => {
+      const stored = mockOAuthTokens({
+        access_token: 'revoked',
+        expires_at: Date.now() + 60_000,
+        refresh_token: 'old-rt',
+      });
+      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
+      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+      vi.mocked(fs.chmod).mockResolvedValue(undefined);
+      fetchMock.mockResolvedValue(
+        mockFetchResponse(200, { access_token: 'new-at', expires_in: 3600 }),
+      );
+      const oauth = createOAuth('secret');
+
+      await oauth.invalidateAccessToken('revoked');
+
+      await expect(oauth.getValidAccessToken()).resolves.toBe('new-at');
+      const body = fetchMock.mock.calls[0]?.[1]?.body as URLSearchParams;
+      expect(body.get('grant_type')).toBe('refresh_token');
+    });
+
+    it('uses a stored token other than the rejected one without any network call', async () => {
+      // Another server process refreshed the shared token file in the meantime.
+      const stored = mockOAuthTokens({ access_token: 'replaced', expires_at: Date.now() + 60_000 });
+      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
+      const oauth = createOAuth('secret');
+
+      await oauth.invalidateAccessToken('revoked');
+
+      await expect(oauth.getValidAccessToken()).resolves.toBe('replaced');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('never falls back to a rejected token when its refresh fails', async () => {
+      const stored = mockOAuthTokens({
+        access_token: 'revoked',
+        expires_at: Date.now() + 60_000,
+        refresh_token: 'old-rt',
+      });
+      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
+      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+      vi.mocked(fs.chmod).mockResolvedValue(undefined);
+      const startCallbackServer = vi
+        .spyOn(asAny(MuralOAuth.prototype), 'startCallbackServer')
+        .mockResolvedValue({ code: 'auth-code' });
+      fetchMock
+        .mockResolvedValueOnce(mockFetchResponse(400, { error: 'invalid_grant' }))
+        .mockResolvedValueOnce(
+          mockFetchResponse(200, { access_token: 'fresh-at', expires_in: 3600 }),
+        );
+      const oauth = createOAuth('secret');
+
+      await oauth.invalidateAccessToken('revoked');
+
+      await expect(oauth.getValidAccessToken()).resolves.toBe('fresh-at');
+      expect(startCallbackServer).toHaveBeenCalledTimes(1);
+    });
+
+    it('runs the browser flow when a token expiring right now cannot be refreshed', async () => {
+      vi.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
+      try {
+        const stored = mockOAuthTokens({ expires_at: Date.now(), refresh_token: 'old-rt' });
+        vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
+        vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+        vi.mocked(fs.chmod).mockResolvedValue(undefined);
+        const startCallbackServer = vi
+          .spyOn(asAny(MuralOAuth.prototype), 'startCallbackServer')
+          .mockResolvedValue({ code: 'auth-code' });
+        fetchMock
+          .mockResolvedValueOnce(mockFetchResponse(503, { error: 'server_error' }))
+          .mockResolvedValueOnce(
+            mockFetchResponse(200, { access_token: 'fresh-at', expires_in: 3600 }),
+          );
+
+        await expect(createOAuth('secret').getValidAccessToken()).resolves.toBe('fresh-at');
+        expect(startCallbackServer).toHaveBeenCalledTimes(1);
       } finally {
         vi.useRealTimers();
       }

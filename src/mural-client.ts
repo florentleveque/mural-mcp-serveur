@@ -64,6 +64,7 @@ export class MuralClient {
     options: RequestInit = {},
     maxRetries: number = 3,
   ): Promise<T> {
+    let retriedAfter401 = false;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       // Check rate limits before making request
       const rateLimitCheck = await this.rateLimiter.canMakeRequest();
@@ -102,6 +103,15 @@ export class MuralClient {
           ...options,
           headers,
         });
+
+        // Mural rejected this token (revoked, or replaced by another process):
+        // drop it and retry once with a fresh one. A 403 is a missing scope,
+        // which no new token fixes.
+        if (response.status === 401 && !retriedAfter401 && attempt < maxRetries) {
+          retriedAfter401 = true;
+          await this.tokens.invalidateAccessToken(accessToken);
+          continue;
+        }
 
         // Handle rate limit responses from the API
         if (response.status === 429) {

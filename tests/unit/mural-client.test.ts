@@ -10,6 +10,7 @@ import { mockFetchResponse } from './helpers.js';
 const mocks = vi.hoisted(() => ({
   getValidAccessToken: vi.fn(),
   getScopes: vi.fn(),
+  invalidateAccessToken: vi.fn(),
   canMakeRequest: vi.fn(),
   consumeRequest: vi.fn(),
   getRateLimitStatus: vi.fn(),
@@ -48,6 +49,7 @@ function createClient(): MuralClient {
   return new MuralClient({
     getValidAccessToken: mocks.getValidAccessToken,
     getScopes: mocks.getScopes,
+    invalidateAccessToken: mocks.invalidateAccessToken,
   });
 }
 
@@ -100,11 +102,61 @@ describe('MuralClient', () => {
       await expect(createClient().getWorkspace('ws1')).resolves.toBeUndefined();
     });
 
-    it.each([400, 401, 403])('does not retry on HTTP %i client errors', async (status) => {
+    it.each([400, 403, 404])('does not retry on HTTP %i client errors', async (status) => {
       fetchMock.mockResolvedValue(mockFetchResponse(status, { message: 'client error' }));
 
       await expect(createClient().getWorkspace('ws1')).rejects.toThrow(`HTTP ${status}`);
       expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(mocks.invalidateAccessToken).not.toHaveBeenCalled();
+    });
+
+    it('drops a token Mural rejects with 401 and retries once with a fresh one', async () => {
+      mocks.getValidAccessToken.mockResolvedValueOnce('revoked').mockResolvedValueOnce('fresh');
+      fetchMock
+        .mockResolvedValueOnce(mockFetchResponse(401, { code: 'UNAUTHORIZED' }))
+        .mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
+
+      await expect(createClient().getWorkspace('ws1')).resolves.toEqual({ id: 'ws1' });
+
+      expect(mocks.invalidateAccessToken).toHaveBeenCalledExactlyOnceWith('revoked');
+      const sent = fetchMock.mock.calls.map(
+        ([, options]) => (options as RequestInit).headers as Record<string, string>,
+      );
+      expect(sent.map((headers) => headers.Authorization)).toEqual([
+        'Bearer revoked',
+        'Bearer fresh',
+      ]);
+    });
+
+    it('throws on a second 401 instead of retrying again', async () => {
+      fetchMock.mockImplementation(() =>
+        Promise.resolve(mockFetchResponse(401, { code: 'UNAUTHORIZED' })),
+      );
+
+      const error = await createClient()
+        .getWorkspace('ws1')
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(MuralApiError);
+      expect((error as MuralApiError).status).toBe(401);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(mocks.invalidateAccessToken).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws a 401 met on the last attempt rather than running out of attempts', async () => {
+      vi.useFakeTimers();
+      fetchMock
+        .mockResolvedValueOnce(mockFetchResponse(500))
+        .mockResolvedValueOnce(mockFetchResponse(500))
+        .mockResolvedValueOnce(mockFetchResponse(500))
+        .mockResolvedValueOnce(mockFetchResponse(401, { code: 'UNAUTHORIZED' }));
+
+      const promise = createClient().getWorkspace('ws1');
+      const expectation = expect(promise).rejects.toThrow('HTTP 401');
+      await vi.advanceTimersByTimeAsync(7000); // backoffs 1s, 2s, 4s
+
+      await expectation;
+      expect(fetchMock).toHaveBeenCalledTimes(4);
     });
 
     it('includes the API error message in thrown client errors', async () => {

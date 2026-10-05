@@ -20,6 +20,36 @@ const TOKEN_FILE_PATH = path.join(os.homedir(), '.mural-mcp-tokens.json');
 // Refresh slightly before the real expiry so a token that would lapse mid-request
 // is renewed proactively instead of failing the next API call with a 401.
 const EXPIRY_MARGIN_MS = 30_000;
+const DEFAULT_TOKEN_LIFETIME_MS = 5 * 60 * 1000;
+
+/** Claims of a JWT, decoded without verification; none when it has no payload part. */
+function jwtPayload(token: string): Record<string, unknown> {
+  const payloadPart = token.split('.')[1];
+  return payloadPart ? JSON.parse(Buffer.from(payloadPart, 'base64url').toString()) : {};
+}
+
+/**
+ * Without a usable expires_in, `Date.now() + undefined * 1000` is NaN, saved as
+ * null, and every call then refreshes (#14). Fall back to the token's exp
+ * claim, then to a short lifetime that errs towards refreshing early.
+ */
+function expiresAtOf(tokens: OAuthTokens): number {
+  const expiresIn = Number(tokens.expires_in);
+  if (Number.isFinite(expiresIn) && expiresIn > 0) {
+    return Date.now() + expiresIn * 1000;
+  }
+  let exp: unknown;
+  try {
+    exp = jwtPayload(tokens.access_token).exp;
+  } catch {
+    // Not a JWT: use the default lifetime.
+  }
+  if (typeof exp === 'number') {
+    return exp * 1000;
+  }
+  console.warn('Token response has no usable expires_in; assuming the token expires in 5 minutes.');
+  return Date.now() + DEFAULT_TOKEN_LIFETIME_MS;
+}
 
 export class MuralOAuth implements MuralTokenProvider {
   private clientId: string;
@@ -27,6 +57,7 @@ export class MuralOAuth implements MuralTokenProvider {
   private redirectUri: string;
   private scopes: string[];
   private authenticationPromise: Promise<OAuthTokens> | null = null;
+  private rejectedAccessToken?: string;
 
   constructor(
     clientId: string,
@@ -111,7 +142,7 @@ export class MuralOAuth implements MuralTokenProvider {
     }
 
     const tokens = data as OAuthTokens;
-    tokens.expires_at = Date.now() + tokens.expires_in * 1000;
+    tokens.expires_at = expiresAtOf(tokens);
 
     return tokens;
   }
@@ -146,7 +177,7 @@ export class MuralOAuth implements MuralTokenProvider {
     }
 
     const tokens = data as OAuthTokens;
-    tokens.expires_at = Date.now() + tokens.expires_in * 1000;
+    tokens.expires_at = expiresAtOf(tokens);
     // Mural's refresh response may omit refresh_token; keep the previous one so
     // we don't lose refresh capability and force a full interactive re-auth.
     tokens.refresh_token ??= refreshToken;
@@ -296,6 +327,7 @@ export class MuralOAuth implements MuralTokenProvider {
     const existingTokens = await this.loadTokens();
     if (
       existingTokens &&
+      existingTokens.access_token !== this.rejectedAccessToken &&
       existingTokens.expires_at &&
       existingTokens.expires_at > Date.now() + EXPIRY_MARGIN_MS
     ) {
@@ -312,7 +344,11 @@ export class MuralOAuth implements MuralTokenProvider {
         // Inside the expiry margin the stored token still works: keep using it
         // rather than blocking on an interactive browser flow over a transient
         // refresh failure (network error, Mural 5xx).
-        if (existingTokens.expires_at && existingTokens.expires_at > Date.now()) {
+        if (
+          existingTokens.access_token !== this.rejectedAccessToken &&
+          existingTokens.expires_at &&
+          existingTokens.expires_at > Date.now()
+        ) {
           console.warn('Token refresh failed, using the still-valid stored token');
           return existingTokens;
         }
@@ -364,6 +400,10 @@ export class MuralOAuth implements MuralTokenProvider {
     return tokens.access_token;
   }
 
+  async invalidateAccessToken(token: string): Promise<void> {
+    this.rejectedAccessToken = token;
+  }
+
   async getStoredTokens(): Promise<OAuthTokens | null> {
     return await this.loadTokens();
   }
@@ -383,12 +423,9 @@ export class MuralOAuth implements MuralTokenProvider {
     // (decoded without verification: it only feeds a pre-flight check).
     if (tokens.access_token) {
       try {
-        const payloadPart = tokens.access_token.split('.')[1];
-        if (payloadPart) {
-          const payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString());
-          if (payload.scopes && Array.isArray(payload.scopes)) {
-            return payload.scopes;
-          }
+        const scopes = jwtPayload(tokens.access_token).scopes;
+        if (Array.isArray(scopes)) {
+          return scopes;
         }
       } catch (jwtError) {
         console.warn('Failed to decode JWT for scope extraction:', jwtError);
