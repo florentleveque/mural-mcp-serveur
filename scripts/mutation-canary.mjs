@@ -5,7 +5,7 @@
 // construction, and fails when the report disagrees, so a runner that stopped
 // measuring names itself here rather than failing the next author's diff.
 // Why it exists and what each design point buys:
-// docs/decisions/mutation-testing.md (§9).
+// docs/decisions/mutation-testing.md ("The canary").
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, rmSync } from 'node:fs';

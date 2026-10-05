@@ -4,7 +4,7 @@
 // nothing reaches: the canary requires `Killed` for the first and `NoCoverage`
 // for the second. The operators differ so each mutant stays identifiable by its
 // replacement alone, wherever the lines move.
-// Why both halves: docs/decisions/mutation-testing.md (§9).
+// Why both halves: docs/decisions/mutation-testing.md ("The canary").
 
 export const killedByItsTest = (a: number, b: number): number => a + b;
 

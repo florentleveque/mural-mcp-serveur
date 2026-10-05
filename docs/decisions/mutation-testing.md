@@ -71,6 +71,16 @@ range arithmetic and report reading are unit-tested
 (`tests/unit/mutation-scope.test.ts`): an off-by-one there would silently stop
 guarding a line.
 
+### What the gate cannot see
+
+Stryker mutates a construct only when the construct is *contained* in a
+requested range. An edit inside a construct larger than the edit (one line of
+a long multi-line expression) can therefore produce no mutant to judge, and the
+gate says so explicitly rather than reporting a pass. Judging mutants that
+merely *overlap* the changed lines instead would pull in mutants this run did
+not instrument, replayed from the baseline with `main`'s verdicts, and fail a
+pull request on code its author did not write.
+
 ### Waive late, not early
 
 An equivalent mutant (one no test could ever tell apart from the original)
