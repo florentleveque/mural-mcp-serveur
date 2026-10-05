@@ -217,3 +217,46 @@ export const callMcp = async (baseUrl: string, accessToken: string | undefined) 
     body: await res.text(),
   };
 };
+
+/** The JSON-RPC message of an MCP answer, whether it came as JSON or as one SSE event. */
+const rpcMessage = (contentType: string | null, text: string): unknown => {
+  if (!contentType?.includes('text/event-stream')) return JSON.parse(text);
+  const data = text
+    .split('\n')
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice('data:'.length).trim())
+    .join('');
+  return JSON.parse(data);
+};
+
+/** One stateless MCP request (2025 protocol, as Claude Code sends it). */
+export const mcpRequest = async (
+  baseUrl: string,
+  accessToken: string | undefined,
+  method: string,
+  params: Record<string, unknown> = {},
+) => {
+  const res = await fetch(`${baseUrl}/mcp`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+      'mcp-protocol-version': '2025-06-18',
+      connection: 'close',
+      ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+  });
+  const text = await res.text();
+  return {
+    status: res.status,
+    wwwAuthenticate: res.headers.get('www-authenticate'),
+    message:
+      res.status === 200
+        ? (rpcMessage(res.headers.get('content-type'), text) as {
+            result?: Record<string, unknown>;
+            error?: { message: string };
+          })
+        : undefined,
+  };
+};

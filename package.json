@@ -47,7 +47,7 @@
     "url": "https://github.com/florentleveque/mural-mcp-serveur/issues"
   },
   "engines": {
-    "node": ">=24"
+    "node": "24.x"
   },
   "packageManager": "pnpm@12.9.1+sha512.06b055fff5cd20dc12781de173ced3310ce0951bf2ec620211a16045d5444d5c93a663210764ef29a653a610459ba0368f0e74f84d80c54723cf95aae7bc0d6d",
   "files": [
@@ -56,9 +56,11 @@
     "LICENSE"
   ],
   "dependencies": {
+    "@modelcontextprotocol/node": "^2.1.0",
     "@modelcontextprotocol/server": "^2.2.0",
     "@upstash/redis": "^1.39.0",
     "dotenv": "^17.2.1",
+    "express": "^5.2.1",
     "jose": "^6.2.12",
     "oidc-provider": "~9.12.2",
     "zod": "^4.0.14"
@@ -73,6 +75,7 @@
     "@semantic-release/release-notes-generator": "^14.0.3",
     "@stryker-mutator/core": "^10.0.0",
     "@stryker-mutator/vitest-runner": "^10.0.0",
+    "@types/express": "^5.0.6",
     "@types/node": "~24.19.0",
     "@types/oidc-provider": "~9.12.1",
     "@vitest/coverage-v8": "^5.0.2",
