@@ -29,63 +29,15 @@ export interface MuralWorkspace {
   sharingSettings?: Record<string, unknown>;
 }
 
-export interface OAuthTokens {
-  access_token: string;
-  refresh_token?: string;
-  token_type: string;
-  // Not guaranteed by Mural; may also arrive as a numeric string.
-  expires_in?: number | string;
-  scope?: string;
-  expires_at?: number;
-}
-
 /**
  * Where MuralClient gets the caller's Mural access token and the scopes granted
- * to it. The stdio server passes MuralOAuth; a hosted server passes the grant of
- * the user behind the request.
+ * to it: the Mural token the request's access token carries (src/app.ts).
  */
 export interface MuralTokenProvider {
   getValidAccessToken(): Promise<string>;
   getScopes(): Promise<string[]>;
   /** Mural answered 401 to `token`: never hand it out again. */
   invalidateAccessToken(token: string): Promise<void>;
-}
-
-export interface OAuthError {
-  error: string;
-  error_description?: string;
-}
-
-export interface PKCEChallenge {
-  codeVerifier: string;
-  codeChallenge: string;
-  codeChallengeMethod: string;
-}
-
-export interface AuthorizationParams {
-  client_id: string;
-  redirect_uri: string;
-  scope: string;
-  response_type: string;
-  code_challenge: string;
-  code_challenge_method: string;
-  state?: string;
-}
-
-export interface TokenExchangeParams {
-  client_id: string;
-  client_secret?: string;
-  code: string;
-  code_verifier: string;
-  grant_type: string;
-  redirect_uri: string;
-}
-
-export interface RefreshTokenParams {
-  client_id: string;
-  client_secret?: string;
-  refresh_token: string;
-  grant_type: string;
 }
 
 export interface MuralBoard {

@@ -1,24 +1,9 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { toolContext } from './helpers.js';
 import { LoopbackTransport, openSession } from './server-harness.js';
 
-const harness = vi.hoisted(() => ({ transport: undefined as unknown, getExportUrl: vi.fn() }));
-
-vi.mock('dotenv/config', () => ({}));
-vi.mock('@modelcontextprotocol/server/stdio', () => ({
-  StdioServerTransport: class {
-    constructor() {
-      // biome-ignore lint/correctness/noConstructorReturn: hands src/index.ts the loopback transport.
-      return harness.transport;
-    }
-  },
-}));
-vi.mock('../../src/mural-client.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../src/mural-client.js')>()),
-  MuralClient: class {
-    getExportUrl = harness.getExportUrl;
-  },
-}));
+const harness = { getExportUrl: vi.fn() };
 
 describe('download-export tool', () => {
   const transport = new LoopbackTransport();
@@ -33,11 +18,7 @@ describe('download-export tool', () => {
   }
 
   beforeAll(async () => {
-    harness.transport = transport;
-    vi.stubEnv('MURAL_CLIENT_ID', 'client-id');
-    vi.stubEnv('MURAL_CLIENT_SECRET', 'client-secret');
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    await openSession(transport);
+    await openSession(transport, toolContext({ getExportUrl: harness.getExportUrl }));
   });
 
   beforeEach(() => {

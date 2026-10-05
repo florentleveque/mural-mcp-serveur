@@ -10,7 +10,7 @@
     {
       "id": "tool-schemas-never-weakened",
       "rule": "These files define the MCP tools an LLM reads. Flag any change that drops a field from an exposed JSON Schema, loosens a type, or loses what a description said. Check that the input schema validates every input and matches the handler, that each description states purpose, when to use the tool and its side effects, and that each parameter description adds something over its name and type. Flag any factual claim about Mural behaviour that looks unverified.",
-      "scope": ["src/index.ts", "src/tools/**"],
+      "scope": ["src/tools/**"],
       "severity": "medium"
     },
     {

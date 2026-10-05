@@ -33,15 +33,14 @@ describe('test-connection', () => {
 });
 
 describe('clear-auth', () => {
-  it('clears the stored tokens', async () => {
+  it("revokes the caller's authorization", async () => {
     const context = toolContext({});
 
     const payload = await callTool(utilityTools, 'clear-auth', {}, context);
 
     expect(context.clearAuthentication).toHaveBeenCalledOnce();
     expect(payload).toEqual({
-      message:
-        'Authentication tokens cleared. You will need to re-authenticate on the next API call.',
+      message: 'Authorization revoked. Your MCP client must sign in again before the next call.',
     });
   });
 });

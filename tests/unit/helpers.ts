@@ -24,20 +24,6 @@ export function mockFetchResponse(
   });
 }
 
-/** OAuth tokens fixture, as persisted in ~/.mural-mcp-tokens.json. */
-export function mockOAuthTokens(overrides: Record<string, unknown> = {}) {
-  return {
-    access_token: 'mock-access-token',
-    refresh_token: 'mock-refresh-token',
-    token_type: 'Bearer',
-    expires_in: 3600,
-    expires_at: Date.now() + 3600 * 1000,
-    scope:
-      'workspaces:read murals:read murals:write rooms:read rooms:write templates:read templates:write identity:read',
-    ...overrides,
-  };
-}
-
 /** A ToolContext over a stub client that only has the methods a test gives it. */
 export function toolContext(client: Record<string, unknown>): ToolContext {
   return { client: client as unknown as MuralClient, clearAuthentication: vi.fn() };

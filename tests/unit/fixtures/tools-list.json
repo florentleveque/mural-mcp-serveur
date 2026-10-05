@@ -1279,7 +1279,7 @@
   {
     "name": "clear-auth",
     "title": "Clear Authentication",
-    "description": "Clear stored authentication tokens (requires re-authentication)",
+    "description": "Sign this MCP connection out: revoke the access and refresh tokens it holds and the Mural tokens behind them (requires re-authentication)",
     "inputSchema": {
       "type": "object",
       "$schema": "https://json-schema.org/draft/2020-12/schema",

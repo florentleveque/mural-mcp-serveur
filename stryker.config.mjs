@@ -12,17 +12,12 @@ export default {
   plugins: ['@stryker-mutator/vitest-runner'],
 
   // Scope: logic code, where a surviving mutant is a genuine test gap.
-  //
-  // `src/index.ts` is excluded: it is the stdio entry point (environment
-  // checks, signal handlers, `main()`), run once per test process at import,
-  // and it goes away with the stdio transport. The tools it used to declare
-  // live in `src/tools/`, which is in scope.
   // `src/types.ts` is type-only: nothing to mutate.
   //
   // `!` ordering is load-bearing: Stryker applies these as set/unset in
   // sequence, and `scopeMatcher` in the gate mirrors it
   // (`tests/unit/mutation-scope.test.ts`).
-  mutate: ['src/**/*.ts', '!src/index.ts', '!src/types.ts'],
+  mutate: ['src/**/*.ts', '!src/types.ts'],
 
   // `json` is what `scripts/mutation-scope.mjs` reads to judge a diff, so it
   // belongs here. The dashboard reporter only runs when its key is set: a

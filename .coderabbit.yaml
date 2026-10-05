@@ -39,8 +39,8 @@ reviews:
         why, or move to docs/decisions/ with a one-line pointer from the code.
         Ignore license headers and tool pragmas (Stryker, Biome, ts-expect-error
         justifications).
-    - path: 'src/index.ts'
-      instructions: &tool-definitions |
+    - path: 'src/tools/**'
+      instructions: |
         These files define the MCP tools exposed to the LLM. Check that:
         - Every exposed JSON Schema keeps what agents depend on: no field
           dropped, no type loosened, no description content lost (AGENTS.md,
@@ -53,8 +53,6 @@ reviews:
           section of README.md.
         Also flag factual claims about Mural API behaviour that look
         unverified or wrong (docs/mural-api.md is the reference).
-    - path: 'src/tools/**'
-      instructions: *tool-definitions
     - path: 'tests/**'
       instructions: |
         Tests never call the real Mural API: HTTP goes through the global fetch

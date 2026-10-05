@@ -34,10 +34,11 @@ export const utilityTools: ToolDefinition[] = [
   defineTool({
     name: 'clear-auth',
     title: 'Clear Authentication',
-    description: 'Clear stored authentication tokens (requires re-authentication)',
+    description:
+      'Sign this MCP connection out: revoke the access and refresh tokens it holds and the Mural tokens behind them (requires re-authentication)',
     inputSchema: z.strictObject({}),
-    // Erases the stored tokens, which only re-authenticating brings back; it
-    // touches this server's own storage, not Mural.
+    // Ends the caller's grant, which only signing in again brings back; it
+    // touches this server's own records, not Mural.
     annotations: {
       readOnlyHint: false,
       destructiveHint: true,
@@ -47,8 +48,7 @@ export const utilityTools: ToolDefinition[] = [
     handler: async (_params, { clearAuthentication }) => {
       await clearAuthentication();
       return jsonResult({
-        message:
-          'Authentication tokens cleared. You will need to re-authenticate on the next API call.',
+        message: 'Authorization revoked. Your MCP client must sign in again before the next call.',
       });
     },
   }),
