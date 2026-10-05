@@ -5,12 +5,12 @@
 // lines the diff changed and fails if any of those mutants survived;
 // `pnpm test:mutation:summary` prints the last report's score as Markdown.
 //
-// Why hand-written at all: StrykerJS has no git-aware scoping — nothing in its
+// Why hand-written at all: StrykerJS has no git-aware scoping; nothing in its
 // schema is `since`/`range`/`diff` (those are Stryker.NET, a different product).
 // The open request for it is stryker-js#2843. So the two halves here
 // are the whole job: turn a diff into `--mutate` line specs, and read the JSON
 // report back. Both are small; what earns the file is that they are *tested*
-// (tests/unit/mutation-scope.test.ts) — an off-by-one in the range arithmetic
+// (tests/unit/mutation-scope.test.ts): an off-by-one in the range arithmetic
 // would silently stop guarding a line. Alternatives weighed, with the numbers:
 // docs/decisions/mutation-testing.md ("Why a script and not a library").
 //
@@ -24,7 +24,7 @@
 // emits the *full* project report, reusing verdicts for files outside the
 // requested scope, so the gate has to filter by the exact ranges that were
 // mutated. Holding those ranges in memory for the whole operation is what
-// guarantees the verdict describes the run that just happened — three steps
+// guarantees the verdict describes the run that just happened: three steps
 // sharing a file on disk can be replayed out of order, and a stale scope beside
 // a fresh report yields a confident verdict about the wrong lines.
 //
@@ -81,9 +81,9 @@ export const specsFor = (ranges) => ranges.map((r) => `${r.file}:${r.start}-${r.
  * `babel-transformer`). Containment, not overlap: under `--incremental` the
  * report also carries mutants Stryker chose NOT to instrument this run, replayed
  * from the baseline with their old verdict (`incremental-differ`, "old mutants
- * that didn't run this time around"). An overlap test would pull those in — a
+ * that didn't run this time around"). An overlap test would pull those in (a
  * multi-line mutant spanning lines 100-140 that survived on main, judged against
- * a PR that touched line 120 — and fail the PR on a stale verdict for code it
+ * a PR that touched line 120) and fail the PR on a stale verdict for code it
  * did not write, which the author cannot fix. Judging exactly what this run
  * mutated is the whole point of holding the ranges.
  *
@@ -128,7 +128,7 @@ export const tallyStatuses = (report) => {
  * A naive `patterns.some(...)` would ignore the negations, and the consequence
  * is not a cosmetic mismatch: the gate passes its ranges to `--mutate`, and that
  * flag *replaces* the configured scope rather than intersecting with it. An
- * excluded file would be silently mutated and gated anyway — the exclusion
+ * excluded file would be silently mutated and gated anyway: the exclusion
  * defeated in the one place it has to hold.
  */
 export const scopeMatcher = (patterns) => (path) => {
@@ -163,14 +163,14 @@ const loadConfig = async () => {
   if (mutate.length === 0) throw new Error('stryker.config.mjs declares no `mutate` patterns.');
   const reportPath = config.jsonReporter?.fileName;
   if (!reportPath) {
-    throw new Error('stryker.config.mjs must set `jsonReporter.fileName` — the gate reads it.');
+    throw new Error('stryker.config.mjs must set `jsonReporter.fileName`: the gate reads it.');
   }
   return { inScope: scopeMatcher(mutate), reportPath };
 };
 
 // `--src-prefix`/`--dst-prefix` are not decoration: a contributor with
 // `diff.noprefix` or `diff.mnemonicPrefix` set gets `+++ path` or `+++ w/path`,
-// which `changedRanges` cannot parse — the gate would then find no ranges and
+// which `changedRanges` cannot parse: the gate would then find no ranges and
 // pass silently on a PR full of in-scope changes. Verified: with
 // `diff.noprefix=true` the header comes out as `+++ src/mural-client.ts`.
 // `--no-ext-diff` keeps a configured external differ from replacing the unified
@@ -197,7 +197,7 @@ const gitDiff = (baseSha, headSha) =>
 const readReport = (reportPath) => {
   const absolute = join(repoRoot, reportPath);
   if (!existsSync(absolute)) {
-    throw new Error(`${reportPath} not found — Stryker did not produce a JSON report.`);
+    throw new Error(`${reportPath} not found: Stryker did not produce a JSON report.`);
   }
   return JSON.parse(readFileSync(absolute, 'utf8'));
 };
@@ -209,7 +209,7 @@ const diffGate = async (baseSha, headSha, strykerFlags) => {
   const ranges = changedRanges(gitDiff(baseSha, headSha), inScope);
 
   if (ranges.length === 0) {
-    console.log('No changed lines inside the mutate scope — nothing to gate.');
+    console.log('No changed lines inside the mutate scope: nothing to gate.');
     return;
   }
 
@@ -225,7 +225,7 @@ const diffGate = async (baseSha, headSha, strykerFlags) => {
     // Not the same as "this change is safe", and worth saying so: Stryker only
     // mutates constructs *contained* in the range, so a one-line edit inside a
     // large multi-line expression can produce nothing to run. The gate is blind
-    // there rather than reassuring — see the ADR, "What the gate cannot see".
+    // there rather than reassuring: see the ADR, "What the gate cannot see".
     console.log(
       'Stryker produced no mutants inside the changed lines, so there is nothing to\n' +
         'gate. Note this is not a pass: an edit contained in a larger construct (a long\n' +
@@ -253,7 +253,7 @@ const diffGate = async (baseSha, headSha, strykerFlags) => {
     console.log(`    replaced with: ${JSON.stringify(mutant.replacement ?? '')}`);
   }
   console.log(
-    '\nEach one is a change a test should have noticed. Add or tighten an assertion —\n' +
+    '\nEach one is a change a test should have noticed. Add or tighten an assertion:\n' +
       'never weaken one to go green. If a mutant is genuinely equivalent to the\n' +
       'original (unreachable defensive guard, say), say so in the code with\n' +
       '`// Stryker disable next-line <mutatorName>: <why>` so the reasoning is reviewable.\n' +
@@ -276,7 +276,7 @@ const USAGE =
   'usage: pnpm test:mutation:diff <baseSha> <headSha> [...strykerFlags]\n' +
   '       pnpm test:mutation:summary';
 
-// Only dispatch when run as a program — the exports above are unit-tested.
+// Only dispatch when run as a program: the exports above are unit-tested.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [command, ...args] = process.argv.slice(2);
   if (command === 'diff') {

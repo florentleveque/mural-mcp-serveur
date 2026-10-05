@@ -4,7 +4,7 @@ import { killedByItsTest } from './subject.js';
 
 // The nesting is load-bearing. Stryker filters a mutant's run with a regex over
 // *qualified* test names, so a top-level `it` exercises a filter with no
-// separator in it — the one shape that kept working when the vitest 5 separator change broke everything
+// separator in it: the one shape that kept working when the vitest 5 separator change broke everything
 // else. Two levels of `describe` put a real separator on both sides of the join.
 describe('the mutation canary subject', () => {
   describe('killedByItsTest', () => {

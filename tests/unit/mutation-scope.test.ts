@@ -52,7 +52,7 @@ describe('changedRanges', () => {
   });
 
   it('skips a hunk that only deletes lines', () => {
-    // `+40,0` — nothing on the head side, so nothing to mutate.
+    // `+40,0`: nothing on the head side, so nothing to mutate.
     const diff = ['+++ b/src/utils/logger.ts', '@@ -40,3 +40,0 @@'].join('\n');
     expect(changedRanges(diff, inScope)).toEqual([]);
   });
@@ -200,7 +200,7 @@ describe('scopeMatcher', () => {
 
   it('applies patterns in order, so a later positive re-includes', () => {
     // Stryker resolves these as a sequence of set/unset operations, not as two
-    // independent lists — the order is the whole contract.
+    // independent lists: the order is the whole contract.
     expect(
       scopeMatcher(['src/**/*.ts', '!src/utils/formatting.ts'])('src/utils/formatting.ts'),
     ).toBe(false);

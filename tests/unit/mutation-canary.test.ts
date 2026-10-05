@@ -39,8 +39,8 @@ describe('judgeCanary', () => {
     // escaped" check would wave through.
     expect(judgeCanary({})).toMatchInlineSnapshot(`
       [
-        "no mutant replaced anything with \`a - b\` — expected one, reported Killed.",
-        "no mutant replaced anything with \`a / b\` — expected one, reported NoCoverage.",
+        "no mutant replaced anything with \`a - b\`: expected one, reported Killed.",
+        "no mutant replaced anything with \`a / b\`: expected one, reported NoCoverage.",
       ]
     `);
   });
@@ -71,7 +71,7 @@ describe('judgeCanary', () => {
     const drifted = report(mutant('a % b', 'Survived'), ...healthy().files[SUBJECT].mutants);
     expect(judgeCanary(drifted)).toMatchInlineSnapshot(`
       [
-        "scripts/mutation-canary/subject.ts:14 produced an unexpected mutant \`a % b\` (Survived) — the fixture or the set of mutators applied to it has changed. Check the verdict is the right one, then say so in EXPECTED_VERDICTS.",
+        "scripts/mutation-canary/subject.ts:14 produced an unexpected mutant \`a % b\` (Survived): the fixture or the set of mutators applied to it has changed. Check the verdict is the right one, then say so in EXPECTED_VERDICTS.",
       ]
     `);
   });
@@ -81,20 +81,20 @@ describe('judgeCanary', () => {
     const ambiguous = report(mutant('a - b', 'Killed'), mutant('a - b', 'Survived', 16));
     expect(judgeCanary(ambiguous)).toEqual([
       'scripts/mutation-canary/subject.ts: two mutants share the replacement `a - b`',
-      'no mutant replaced anything with `a / b` — expected one, reported NoCoverage.',
+      'no mutant replaced anything with `a / b`: expected one, reported NoCoverage.',
     ]);
   });
 
   it('does not take an inherited property name for an expected mutant', () => {
     // `'constructor' in expected` is true of any object literal, so an `in`
-    // check would treat this mutant as expected and then never judge it — a
+    // check would treat this mutant as expected and then never judge it: a
     // hole in the exhaustiveness the canary's whole claim rests on.
     expect(
       judgeCanary(report(mutant('constructor', 'Survived')), { 'a - b': 'Killed' }),
     ).toMatchInlineSnapshot(`
         [
-          "scripts/mutation-canary/subject.ts:14 produced an unexpected mutant \`constructor\` (Survived) — the fixture or the set of mutators applied to it has changed. Check the verdict is the right one, then say so in EXPECTED_VERDICTS.",
-          "no mutant replaced anything with \`a - b\` — expected one, reported Killed.",
+          "scripts/mutation-canary/subject.ts:14 produced an unexpected mutant \`constructor\` (Survived): the fixture or the set of mutators applied to it has changed. Check the verdict is the right one, then say so in EXPECTED_VERDICTS.",
+          "no mutant replaced anything with \`a - b\`: expected one, reported Killed.",
         ]
       `);
   });
