@@ -14,15 +14,6 @@ documentation (that is `README.md`).
   by changing what someone does next. Git history already holds what was done.
   Exception: a migration still in flight, while both states are live.
 
-## Migration in flight: remote HTTP server (#17, PR #18)
-
-PR #18 replaces the stdio server and its local OAuth flow with a remote MCP
-server on Vercel. That server holds the Mural client secret and acts as its own
-OAuth authorization server for MCP clients; stdio and npm publishing go away.
-Until #18 merges, the sections below describe the **current** state on `main`;
-read the PR description for the target design and the commit sequence. Drop
-this section once #18 lands.
-
 ## Claim before you build: no duplicate work
 
 Before coding an issue: re-read it live (closed as completed means it already
@@ -44,7 +35,8 @@ predates this rule and is an accepted exception; don't imitate it.
   schema, title, annotations, and a handler that receives a `ToolContext` per
   call. `src/tools/registry.ts` lists them in exposed order, `src/server.ts`
   registers them on an `McpServer` (the SDK validates arguments against the
-  schema), and `src/index.ts` connects that server to stdio.
+  schema), and `src/app.ts` serves it over HTTP on Vercel, one server per
+  request.
 - Annotate with the shared `READ_ONLY`, `CREATES` or `OVERWRITES` unless a tool
   fits none of them. A closed object is `z.strictObject`, so the exposed schema
   says `additionalProperties: false` and the server enforces it.
@@ -56,9 +48,11 @@ predates this rule and is an accepted exception; don't imitate it.
   Read tools return a compact projection (`src/projections.ts`) and take
   `verbose: true` to opt back into the raw object. Keep both conventions for any
   new read tool.
-- Auth (`src/oauth.ts`): OAuth 2.0 with PKCE plus the client secret (Mural
-  refuses a refresh without it), tokens in `~/.mural-mcp-tokens.json`, a
-  temporary callback server on port 3000.
+- Auth (`src/auth/`): the server is the OAuth authorization server of its MCP
+  clients (`oidc-provider`), and signs users in to Mural with the client secret
+  (Mural refuses a refresh without it). Every record lives in Upstash Redis:
+  any request may reach another instance. Design:
+  `docs/decisions/oauth-authorization-server.md`.
 - Mural API reference: `docs/mural-api.md` and
   <https://developers.mural.co/public/docs>.
 
@@ -150,9 +144,12 @@ validation.
 
 ## Secrets and personal data
 
-- Never print, log or commit a secret: `.env`, `~/.mural-mcp-tokens.json`, OAuth
-  tokens, the Mural client secret. A command that needs one reads it into a
-  variable and uses it without echoing it.
+- Never print, log or commit a secret: `.env`, OAuth tokens, the Mural client
+  secret, `TOKEN_ENCRYPTION_KEY`, the Upstash token, the Vercel protection
+  bypass secret. A command that needs one reads it into a variable and uses it
+  without echoing it. Never decrypt Vercel environment variables, and never run
+  `vercel link` or `vercel env pull` in the repository (they write secrets into
+  the working tree).
 - Murals hold real people's content and names. Never paste real mural content,
   member names or emails into a commit, an issue, a PR or a test fixture:
   redact or use synthetic data.
