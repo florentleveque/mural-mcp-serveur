@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { schemaWeakenings } from './schema-compat.js';
 import { LoopbackTransport, openSession } from './server-harness.js';
 
 const harness = vi.hoisted(() => ({ transport: undefined as unknown }));
@@ -23,6 +24,18 @@ const baseline = JSON.parse(
   readFileSync(new URL('./fixtures/tools-list.json', import.meta.url), 'utf8'),
 );
 
+interface ListedTool {
+  name: string;
+  description?: string;
+  inputSchema: Record<string, unknown>;
+}
+
+// The last hand-written surface, frozen when the schemas moved to zod: the
+// floor every generated schema must keep. Never edit it to make a test pass.
+const handwritten: ListedTool[] = JSON.parse(
+  readFileSync(new URL('./fixtures/tools-list.handwritten.json', import.meta.url), 'utf8'),
+);
+
 describe('exposed tool schemas', () => {
   const transport = new LoopbackTransport();
 
@@ -38,5 +51,21 @@ describe('exposed tool schemas', () => {
     const response = await transport.request('tools/list');
 
     expect(response.result?.tools).toEqual(baseline);
+  });
+
+  it('weakens nothing the hand-written schemas promised', async () => {
+    const response = await transport.request('tools/list');
+    const tools = response.result?.tools as ListedTool[];
+
+    const weakenings = handwritten.flatMap((reference) => {
+      const tool = tools.find(({ name }) => name === reference.name);
+      if (!tool) return [`${reference.name}: tool dropped`];
+      return [
+        ...(tool.description ? [] : [`${reference.name}: description dropped`]),
+        ...schemaWeakenings(reference.inputSchema, tool.inputSchema, reference.name),
+      ];
+    });
+
+    expect(weakenings).toEqual([]);
   });
 });
