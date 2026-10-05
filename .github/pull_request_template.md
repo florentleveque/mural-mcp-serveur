@@ -1,0 +1,36 @@
+## Summary
+<!-- In 1-3 sentences, what does this PR change and why? -->
+
+## Linked issue
+<!-- If this PR resolves an issue, use a GitHub closing keyword so the issue
+     auto-closes when this PR is squash-merged into `main`:
+       Closes #123   (also accepted: Fixes #123 / Resolves #123)
+     A bare "#123" or "Part of #123" references the issue but does NOT close it.
+     Keep the keyword in this description (GitHub reads the PR body on squash
+     merge). If this PR isn't tied to an issue, write "None". -->
+Closes #<n>
+
+## Type of change
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Refactor (no external behavior change)
+- [ ] Documentation
+- [ ] Tooling / CI
+
+## Author checklist
+- [ ] I checked no open or merged PR already addresses the linked issue, and the issue is not already closed as completed
+- [ ] If this PR resolves an issue, its description above links it with a closing keyword (`Closes #<n>`)
+- [ ] `pnpm test` passes locally
+- [ ] `pnpm test:coverage` meets the thresholds
+- [ ] `pnpm check` is clean (lint + format)
+- [ ] `pnpm typecheck` passes
+- [ ] If `src/` changed: `pnpm test:mutation:diff origin/main HEAD` reports no escaped mutant
+- [ ] I have read the diff myself, line by line
+- [ ] I ran an AI review on the diff and addressed its findings
+- [ ] No exposed tool schema was weakened (no field dropped, no type loosened, no description content lost)
+- [ ] Documentation is updated where needed (`README.md` "Tools Available" if the tool surface changed)
+- [ ] No real mural content, member name or email appears in the diff, the description or the fixtures
+- [ ] If the change has **MCP-runtime-observable** behaviour (tool surface, transports, auth, resources, prompts, persistence, timing): this PR carries a `## Functional validation plan`, executed by an independent validator whose report is posted as a PR comment. Pure tooling is exempt: the standard gates cover it.
+
+## Notes for the reviewer (human or AI)
+<!-- Points worth attention, design choices to validate, alternatives ruled out -->
