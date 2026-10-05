@@ -5,6 +5,9 @@ allowBuilds:
   # binary already ships in the platform optional dependency, so the CLI works
   # with the build script blocked. Kept false deliberately.
   lefthook: false
+  # msw's postinstall only copies its browser Service Worker into a directory
+  # package.json names; the tests use msw/node, which needs no worker.
+  msw: false
 
 # 5 days. pnpm refuses any version younger than this when it resolves the tree,
 # so a compromised release that gets yanked within that window never lands.

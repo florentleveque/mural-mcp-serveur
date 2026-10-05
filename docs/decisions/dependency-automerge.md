@@ -23,6 +23,10 @@ gating on.
   serialised by the SDK. A minor on either can move that schema, which the tool
   schema rule in [`AGENTS.md`](../../AGENTS.md) forbids weakening. These are read
   by hand.
+- **`oidc-provider` is the OAuth authorization server every client signs in
+  through.** Its Client ID Metadata Document support is experimental and pinned
+  to a minor (`~`): a minor can change what clients see when they register or
+  sign in. Read by hand too.
 - **Everything else is a leaf** behind our own code, and CI is what catches a
   behaviour change in it.
 

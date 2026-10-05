@@ -68,7 +68,8 @@ export const createMuralGrants = (options: MuralGrantsOptions): MuralGrants => {
   const { records, store, upstream } = options;
   const margin = options.refreshMarginMs ?? MURAL_REFRESH_MARGIN_MS;
   const refresh = options.refresh ?? refreshMuralTokens;
-  const now = options.now ?? Date.now;
+  // Read at call time, so fake clocks in tests reach it.
+  const now = options.now ?? (() => Date.now());
   const sleep = options.sleep ?? wait;
 
   const needsRefresh = (tokens: MuralTokenSet): boolean => tokens.expiresAt - now() <= margin;

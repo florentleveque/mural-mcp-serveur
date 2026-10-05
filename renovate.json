@@ -77,13 +77,14 @@
     },
     {
       "description": "The @modelcontextprotocol/* SDK packages and zod define the JSON Schema this server exposes to agents, so a minor on either can move the tool surface itself, which the tool schema rule in AGENTS.md forbids weakening. Their minors are read by hand. The overrides here are what pull them back out of the batches above: without a schedule their PR could only open on Monday morning, and automerge false is what actually holds them. zod's groupName null takes it out of the production batch; the SDK packages keep the 'mcp sdk' group from the rule above, because they must move together. Patches stay in their batch on purpose: a patch that moved the exposed schema would be an upstream bug, not a normal release. Why: docs/decisions/dependency-automerge.md.",
-      "matchPackageNames": ["@modelcontextprotocol/*", "zod"],
+      "matchPackageNames": ["@modelcontextprotocol/*", "zod", "oidc-provider"],
       "matchUpdateTypes": ["minor"],
       "schedule": ["at any time"],
       "automerge": false
     },
     {
-      "matchPackageNames": ["zod"],
+      "description": "oidc-provider is the OAuth authorization server every client signs in through, and the Client ID Metadata Document support this server relies on is experimental there (acknowledged by draft name), hence the ~ range: a minor can change it. It joins the hand-read minors above, and like zod leaves the production batch.",
+      "matchPackageNames": ["zod", "oidc-provider"],
       "matchUpdateTypes": ["minor"],
       "groupName": null
     },

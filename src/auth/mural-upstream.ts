@@ -126,7 +126,9 @@ const requestTokens = async (
     throw upstreamAuthError('Mural token endpoint unreachable.', undefined, err);
   }
   if (!response.ok) {
-    await response.body?.cancel();
+    // Read to the end, not cancelled: that frees the connection too, and a
+    // cancel never settles on a body MSW mocks.
+    await response.text().catch(() => undefined);
     throw upstreamAuthError(
       `Mural refused the ${grant['grant_type']} grant (${response.status}).`,
       response.status,

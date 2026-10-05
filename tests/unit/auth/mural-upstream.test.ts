@@ -171,22 +171,29 @@ describe('token requests', () => {
     expect(tokens.expiresAt).toBe(NOW + 5 * 60 * 1000);
   });
 
-  it('reports a refusal with its status, never the Mural body, and releases the body', async () => {
-    const cancel = vi.fn();
-    const body = new ReadableStream({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode('{"error":"invalid_grant","secret":"x"}'));
-      },
-      cancel,
-    });
-    fetchMock.mockResolvedValue(new Response(body, { status: 400 }));
+  it('reports a refusal with its status, never the Mural body, and drains the body', async () => {
+    const response = Response.json({ error: 'invalid_grant', secret: 'x' }, { status: 400 });
+    fetchMock.mockResolvedValue(response);
     const failure = refreshMuralTokens(UPSTREAM, 'r1');
     await expect(failure).rejects.toThrow('Mural refused the refresh_token grant (400).');
     const err = await failure.catch((e: unknown) => e);
     expect(isUpstreamAuthError(err)).toBe(true);
     expect(err).toMatchObject({ name: 'UpstreamAuthError', status: 400 });
     expect(String((err as Error).message)).not.toContain('secret');
-    expect(cancel).toHaveBeenCalled();
+    expect(response.bodyUsed).toBe(true);
+  });
+
+  it('still reports the refusal when its body cannot be read', async () => {
+    const body = new ReadableStream({
+      pull: () => {
+        throw new Error('connection reset');
+      },
+    });
+    fetchMock.mockResolvedValue(new Response(body, { status: 400 }));
+    await expect(refreshMuralTokens(UPSTREAM, 'r1')).rejects.toMatchObject({
+      name: 'UpstreamAuthError',
+      status: 400,
+    });
   });
 
   it('names the grant type of a refused code exchange', async () => {
