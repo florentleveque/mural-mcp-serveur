@@ -14,6 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:smoke": "node scripts/smoke-http.mjs",
     "prepare": "lefthook install || true",
     "prepublishOnly": "pnpm build",
     "check": "biome check --error-on-warnings .",

@@ -61,6 +61,11 @@ jobs:
 
       - run: pnpm build
 
+      # The built entry point Vercel deploys, before any sign-in: health,
+      # OAuth discovery and the 401 that starts one.
+      - name: HTTP smoke test
+        run: pnpm test:smoke
+
       - run: pnpm pack --pack-destination .
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
