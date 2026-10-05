@@ -155,7 +155,12 @@ export const buildProvider = (options: ProviderOptions): Provider => {
       // here, each with its grant; the always-skip sibling is killed.
       if (token.kind !== 'AccessToken' || !token.grantId) return undefined;
       try {
-        return { mt: await options.muralGrants.accessToken(token.grantId), gid: token.grantId };
+        const mural = await options.muralGrants.freshTokens(token.grantId);
+        return {
+          mt: mural.accessToken,
+          gid: token.grantId,
+          ...(mural.scopes ? { ms: mural.scopes.join(' ') } : {}),
+        };
       } catch (err) {
         if (isGrantUnavailableError(err)) {
           // Stryker disable next-line ObjectLiteral: detail and cause only reach oidc-provider's debug log.

@@ -14,6 +14,7 @@ import {
   isUpstreamAuthError,
   type MuralTokenSet,
   type MuralUpstream,
+  parseScopeList,
 } from './mural-upstream.js';
 import type { SealedCollection } from './store.js';
 import { canSkipConsent } from './trusted-clients.js';
@@ -182,11 +183,17 @@ export const createInteractionRoutes = (deps: InteractionDeps) => {
     const code = url.searchParams.get('code');
     if (!verifier || !code) return deny(req, res, 'The Mural sign-in was cancelled or refused.');
     try {
-      const tokens = await exchangeMuralCode(upstream, {
+      const exchanged = await exchangeMuralCode(upstream, {
         code,
         redirectUri: callbackUrl,
         codeVerifier: verifier,
       });
+      // Mural reports the granted scopes on its callback, not in the token
+      // answer (seen live, 2026-10-04); a standard `scope` there would win.
+      const tokens = {
+        ...exchanged,
+        scopes: exchanged.scopes ?? parseScopeList(url.searchParams.get('scopes')),
+      };
       const identity = await fetchMuralIdentity(tokens.accessToken);
       const accountId = `mural:${identity.id}`;
       await deps.pendingTokens.set(
@@ -242,8 +249,10 @@ export const createInteractionRoutes = (deps: InteractionDeps) => {
       }
       // The interaction cookie is scoped to /interaction/<uid>, so hop there.
       const next = new URL(`/interaction/${uid}/callback`, issuer);
-      const code = url.searchParams.get('code');
-      if (code) next.searchParams.set('code', code);
+      for (const name of ['code', 'scopes']) {
+        const value = url.searchParams.get(name);
+        if (value) next.searchParams.set(name, value);
+      }
       redirect(res, `${next.pathname}${next.search}`);
     },
     /** `/interaction/<uid>[/callback|/confirm|/abort]`. */

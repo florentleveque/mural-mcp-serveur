@@ -7,6 +7,7 @@ import {
   generateCodeVerifier,
   isUpstreamAuthError,
   MURAL_SCOPES,
+  parseScopeList,
   refreshMuralTokens,
   TOKEN_REQUEST_TIMEOUT_MS,
 } from '../../../src/auth/mural-upstream.js';
@@ -143,6 +144,18 @@ describe('token requests', () => {
     expect(await refreshMuralTokens(UPSTREAM, 'r1')).toMatchObject({ refreshToken: 'r2' });
   });
 
+  it('reads the scopes a token answer reports, and none when it reports none', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ access_token: 'a1', expires_in: 900, scope: 'murals:read rooms:read' }),
+    );
+    expect((await refreshMuralTokens(UPSTREAM, 'r1')).scopes).toEqual([
+      'murals:read',
+      'rooms:read',
+    ]);
+    fetchMock.mockResolvedValueOnce(Response.json({ access_token: 'a1', expires_in: 900 }));
+    expect((await refreshMuralTokens(UPSTREAM, 'r1')).scopes).toBeUndefined();
+  });
+
   it.each([
     ['missing', undefined],
     ['zero', 0],
@@ -213,6 +226,17 @@ describe('token requests', () => {
     expect(isUpstreamAuthError(err)).toBe(true);
     expect(err).toMatchObject({ message: 'Mural token endpoint unreachable.', cause });
     expect(Object.hasOwn(err as object, 'status')).toBe(false);
+  });
+});
+
+describe('parseScopeList', () => {
+  it('splits a space-separated list, and reads none from anything else', () => {
+    expect(parseScopeList('murals:read rooms:read')).toEqual(['murals:read', 'rooms:read']);
+    expect(parseScopeList(' murals:read  ')).toEqual(['murals:read']);
+    expect(parseScopeList('')).toBeUndefined();
+    expect(parseScopeList('   ')).toBeUndefined();
+    expect(parseScopeList(null)).toBeUndefined();
+    expect(parseScopeList(['murals:read'])).toBeUndefined();
   });
 });
 

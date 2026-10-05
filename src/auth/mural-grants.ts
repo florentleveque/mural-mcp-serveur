@@ -23,12 +23,13 @@ export interface MuralGrants {
   /** Record the Mural tokens obtained at sign-in for one of our grants. */
   save(grantId: string, tokens: MuralTokenSet): Promise<void>;
   /**
-   * A Mural access token valid for at least the refresh margin, refreshing (and
-   * persisting the rotated set) when needed. Rejects with a grant-unavailable
-   * error when the grant has no Mural tokens or Mural refuses the refresh: the
-   * user must sign in again. Any other failure is rethrown and the grant kept.
+   * The grant's Mural tokens, their access token valid for at least the refresh
+   * margin, refreshing (and persisting the rotated set) when needed. Rejects
+   * with a grant-unavailable error when the grant has no Mural tokens or Mural
+   * refuses the refresh: the user must sign in again. Any other failure is
+   * rethrown and the grant kept.
    */
-  accessToken(grantId: string): Promise<string>;
+  freshTokens(grantId: string): Promise<MuralTokenSet>;
   remove(grantId: string): Promise<void>;
 }
 
@@ -101,7 +102,11 @@ export const createMuralGrants = (options: MuralGrantsOptions): MuralGrants => {
     }
   };
 
-  const refreshed = async (grantId: string, refreshToken: string): Promise<string> => {
+  const refreshed = async (
+    grantId: string,
+    refreshToken: string,
+    granted: MuralTokenSet['scopes'],
+  ): Promise<MuralTokenSet> => {
     let fresh: MuralTokenSet;
     try {
       fresh = await refresh(upstream, refreshToken);
@@ -113,8 +118,10 @@ export const createMuralGrants = (options: MuralGrantsOptions): MuralGrants => {
       await records.delete(grantId);
       throw grantUnavailableError();
     }
-    await persist(grantId, fresh);
-    return fresh.accessToken;
+    // A refresh cannot widen the grant: what Mural reported at sign-in still holds.
+    const tokens = { ...fresh, scopes: fresh.scopes ?? granted };
+    await persist(grantId, tokens);
+    return tokens;
   };
 
   return {
@@ -122,17 +129,17 @@ export const createMuralGrants = (options: MuralGrantsOptions): MuralGrants => {
     // Under the lock: a refresh already running would otherwise write the
     // rotated tokens back after the removal.
     remove: (grantId) => withLock(grantId, () => records.delete(grantId)),
-    accessToken: async (grantId) => {
+    freshTokens: async (grantId) => {
       const tokens = await records.get(grantId);
       if (!tokens) throw grantUnavailableError();
-      if (!needsRefresh(tokens)) return tokens.accessToken;
+      if (!needsRefresh(tokens)) return tokens;
       return withLock(grantId, async () => {
         // Another instance may have refreshed while this one waited.
         const latest = await records.get(grantId);
         if (!latest) throw grantUnavailableError();
-        if (!needsRefresh(latest)) return latest.accessToken;
+        if (!needsRefresh(latest)) return latest;
         if (!latest.refreshToken) throw grantUnavailableError();
-        return refreshed(grantId, latest.refreshToken);
+        return refreshed(grantId, latest.refreshToken, latest.scopes);
       });
     },
   };

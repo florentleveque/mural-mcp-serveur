@@ -39,12 +39,15 @@ export interface MuralTokenSet {
   readonly refreshToken?: string | undefined;
   /** Epoch ms. */
   readonly expiresAt: number;
+  /** The scopes Mural granted, as it reported them; absent when it reported none. */
+  readonly scopes?: readonly string[] | undefined;
 }
 
 interface TokenResponse {
   access_token: string;
   refresh_token?: string;
   expires_in?: unknown;
+  scope?: unknown;
 }
 
 export type UpstreamAuthError = Error & {
@@ -61,6 +64,13 @@ const upstreamAuthError = (message: string, status?: number, cause?: unknown): U
 
 export const isUpstreamAuthError = (err: unknown): err is UpstreamAuthError =>
   err instanceof Error && err.name === 'UpstreamAuthError';
+
+/** A space-separated scope list, or `undefined` for anything else or an empty one. */
+export const parseScopeList = (value: unknown): string[] | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const scopes = value.split(' ').filter(Boolean);
+  return scopes.length > 0 ? scopes : undefined;
+};
 
 export const generateCodeVerifier = (): string => randomBytes(32).toString('base64url');
 
@@ -141,6 +151,7 @@ const requestTokens = async (
     // one then stays valid.
     refreshToken: result.refresh_token ?? previousRefreshToken,
     expiresAt: expiresAtOf(result),
+    scopes: parseScopeList(result.scope),
   };
 };
 

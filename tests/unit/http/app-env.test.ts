@@ -57,9 +57,14 @@ describe('requestTokenProvider', () => {
     expiresAt: 0,
   };
 
-  it('hands out the Mural token the request carries, and the scopes asked of Mural', async () => {
-    const provider = requestTokenProvider(token, vi.fn());
+  it('hands out the Mural token and the Mural scopes the request carries', async () => {
+    const provider = requestTokenProvider({ ...token, muralScopes: ['murals:read'] }, vi.fn());
     expect(await provider.getValidAccessToken()).toBe('mural-token');
+    expect(await provider.getScopes()).toEqual(['murals:read']);
+  });
+
+  it('reports the scopes asked of Mural when Mural reported none', async () => {
+    const provider = requestTokenProvider(token, vi.fn());
     expect(await provider.getScopes()).toEqual(MURAL_SCOPES);
     expect(await provider.getScopes()).not.toBe(MURAL_SCOPES);
   });

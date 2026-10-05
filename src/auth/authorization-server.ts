@@ -7,7 +7,7 @@ import { createInteractionRoutes } from './interactions.js';
 import type { KeyRing } from './keys.js';
 import { consoleLogger, type Logger } from './log.js';
 import { createMuralGrants, MURAL_REFRESH_MARGIN_MS } from './mural-grants.js';
-import type { MuralTokenSet, MuralUpstream } from './mural-upstream.js';
+import { type MuralTokenSet, type MuralUpstream, parseScopeList } from './mural-upstream.js';
 import { ACCESS_TOKEN_TTL_S, buildProvider, RESOURCE_SCOPE } from './provider.js';
 import type { RecordStore } from './record-store.js';
 import { createAdapterFactory, createSealedCollection } from './store.js';
@@ -19,6 +19,8 @@ export interface VerifiedAccessToken {
   readonly clientId: string;
   readonly subject: string;
   readonly scopes: string[];
+  /** The scopes Mural granted, when it reported them. */
+  readonly muralScopes?: string[] | undefined;
   /** Epoch seconds. */
   readonly expiresAt: number;
 }
@@ -68,6 +70,7 @@ interface AccessTokenClaims {
   scope?: unknown;
   mt?: unknown;
   gid?: unknown;
+  ms?: unknown;
 }
 
 const asVerified = (
@@ -90,6 +93,7 @@ const asVerified = (
     clientId: String(claims.client_id),
     subject: String(claims.sub),
     scopes: typeof claims.scope === 'string' ? claims.scope.split(' ').filter(Boolean) : [],
+    muralScopes: parseScopeList(claims.ms),
     expiresAt: claims.exp as number,
   };
 };

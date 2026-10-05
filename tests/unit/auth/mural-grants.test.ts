@@ -69,7 +69,7 @@ describe('createMuralGrants', () => {
     const { grants, refresh, now, store } = setup();
     const setIfAbsent = vi.spyOn(store, 'setIfAbsent');
     await grants.save('g', { ...fresh('a1'), expiresAt: now() + MURAL_REFRESH_MARGIN_MS + 1 });
-    expect(await grants.accessToken('g')).toBe('a1');
+    expect((await grants.freshTokens('g')).accessToken).toBe('a1');
     expect(refresh).not.toHaveBeenCalled();
     expect(setIfAbsent).not.toHaveBeenCalled();
   });
@@ -90,22 +90,38 @@ describe('createMuralGrants', () => {
     const refresh = vi.fn(async () => fresh('a2'));
     const { grants, records, now, fake } = setup(refresh);
     await grants.save('g', { ...fresh('a1'), expiresAt: now() + MURAL_REFRESH_MARGIN_MS });
-    expect(await grants.accessToken('g')).toBe('a2');
+    expect((await grants.freshTokens('g')).accessToken).toBe('a2');
     expect(refresh).toHaveBeenCalledWith(UPSTREAM, 'a1-refresh');
     expect(await records.get('g')).toEqual(fresh('a2'));
     expect(fake.keys().has(LOCK)).toBe(false);
     // Fresh now: served without another refresh.
-    expect(await grants.accessToken('g')).toBe('a2');
+    expect((await grants.freshTokens('g')).accessToken).toBe('a2');
     expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the scopes Mural granted across a refresh that reports none', async () => {
+    const refresh = vi.fn(async () => fresh('a2'));
+    const { grants, records, now } = setup(refresh);
+    await grants.save('g', { ...fresh('a1'), scopes: ['murals:read'], expiresAt: now() });
+    expect(await grants.freshTokens('g')).toEqual({ ...fresh('a2'), scopes: ['murals:read'] });
+    expect(await records.get('g')).toEqual({ ...fresh('a2'), scopes: ['murals:read'] });
+  });
+
+  it('takes the scopes a refresh reports', async () => {
+    const refresh = vi.fn(async () => ({ ...fresh('a2'), scopes: ['rooms:read'] }));
+    const { grants, records, now } = setup(refresh);
+    await grants.save('g', { ...fresh('a1'), scopes: ['murals:read'], expiresAt: now() });
+    expect((await grants.freshTokens('g')).scopes).toEqual(['rooms:read']);
+    expect((await records.get('g'))?.scopes).toEqual(['rooms:read']);
   });
 
   it('honours a wider margin: a token our access token would outlive is refreshed', async () => {
     const refresh = vi.fn(async () => fresh('a2'));
     const { grants, now } = setup(refresh, 660_000);
     await grants.save('g', { ...fresh('a1'), expiresAt: now() + 660_001 });
-    expect(await grants.accessToken('g')).toBe('a1');
+    expect((await grants.freshTokens('g')).accessToken).toBe('a1');
     await grants.save('g', { ...fresh('a1'), expiresAt: now() + 660_000 });
-    expect(await grants.accessToken('g')).toBe('a2');
+    expect((await grants.freshTokens('g')).accessToken).toBe('a2');
   });
 
   it('spends the Mural refresh token once across instances', async () => {
@@ -120,7 +136,9 @@ describe('createMuralGrants', () => {
     await grants.save('g', { ...fresh('a1'), expiresAt: now() });
     const other = instance();
     const pending = Promise.all(
-      [grants, other, grants, other, grants].map((instanceOf) => instanceOf.accessToken('g')),
+      [grants, other, grants, other, grants].map((instanceOf) =>
+        instanceOf.freshTokens('g').then((tokens) => tokens.accessToken),
+      ),
     );
     await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
     resolveRefresh(fresh('a2'));
@@ -135,7 +153,7 @@ describe('createMuralGrants', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { grants, records, now, fake } = setup(refresh);
     await grants.save('g', { ...fresh('a1'), expiresAt: now() });
-    const failure = grants.accessToken('g');
+    const failure = grants.freshTokens('g');
     await expect(failure).rejects.toThrow(
       'The Mural authorization behind this grant is no longer valid.',
     );
@@ -157,7 +175,7 @@ describe('createMuralGrants', () => {
     });
     const { grants, records, now, fake } = setup(refresh);
     await grants.save('g', { ...fresh('a1'), expiresAt: now() });
-    await expect(grants.accessToken('g')).rejects.toBe(error);
+    await expect(grants.freshTokens('g')).rejects.toBe(error);
     expect(await records.get('g')).toMatchObject({ accessToken: 'a1' });
     expect(fake.keys().has(LOCK)).toBe(false);
   });
@@ -169,7 +187,7 @@ describe('createMuralGrants', () => {
 
   it('reports a grant without Mural tokens as unavailable', async () => {
     const { grants } = setup();
-    const failure = grants.accessToken('unknown');
+    const failure = grants.freshTokens('unknown');
     await expect(failure).rejects.toThrow('no longer valid');
     await failure.catch((err: unknown) => expect(isGrantUnavailableError(err)).toBe(true));
   });
@@ -178,7 +196,7 @@ describe('createMuralGrants', () => {
     const { grants, records, store, now } = setup();
     await grants.save('g', { ...fresh('a1'), expiresAt: now() });
     await store.setIfAbsent(`MuralRefreshLock:${hashId('g')}`, '1', REFRESH_LOCK_TTL_MS);
-    const pending = grants.accessToken('g');
+    const pending = grants.freshTokens('g');
     await records.delete('g');
     await store.delete(`MuralRefreshLock:${hashId('g')}`);
     await expect(pending).rejects.toThrow('no longer valid');
@@ -189,17 +207,17 @@ describe('createMuralGrants', () => {
     const { grants, records, store, now } = setup(refresh);
     await grants.save('g', { ...fresh('a1'), expiresAt: now() });
     await store.setIfAbsent(`MuralRefreshLock:${hashId('g')}`, '1', REFRESH_LOCK_TTL_MS);
-    const pending = grants.accessToken('g');
+    const pending = grants.freshTokens('g');
     await records.set('g', fresh('a2'));
     await store.delete(`MuralRefreshLock:${hashId('g')}`);
-    expect(await pending).toBe('a2');
+    expect((await pending).accessToken).toBe('a2');
     expect(refresh).not.toHaveBeenCalled();
   });
 
   it('reports a stale grant without refresh token as unavailable', async () => {
     const { grants, now, refresh } = setup();
     await grants.save('g', { accessToken: 'a1', expiresAt: now() });
-    await expect(grants.accessToken('g')).rejects.toThrow('no longer valid');
+    await expect(grants.freshTokens('g')).rejects.toThrow('no longer valid');
     expect(refresh).not.toHaveBeenCalled();
   });
 
@@ -209,7 +227,7 @@ describe('createMuralGrants', () => {
     await grants.save('g', { ...fresh('a1'), expiresAt: now() });
     // A lock that never expires: its holder never lets go.
     await store.setIfAbsent(`MuralRefreshLock:${hashId('g')}`, '1');
-    await expect(grants.accessToken('g')).rejects.toThrow(
+    await expect(grants.freshTokens('g')).rejects.toThrow(
       'Timed out waiting for another refresh of this Mural grant.',
     );
     expect(sleep).toHaveBeenCalledTimes(REFRESH_LOCK_TTL_MS / 100);
@@ -229,7 +247,7 @@ describe('createMuralGrants', () => {
     try {
       const { grants, now, fake } = setup(refresh);
       await grants.save('g', { ...fresh('a1'), expiresAt: now() });
-      const pending = grants.accessToken('g');
+      const pending = grants.freshTokens('g');
       while (refresh.mock.calls.length === 0) await new Promise((r) => setImmediate(r));
       expect(REFRESH_LOCK_TTL_MS).toBe(15_000);
       expect(fake.expiryOf(LOCK)).toBe(7_000 + 15_000);
@@ -250,7 +268,7 @@ describe('createMuralGrants', () => {
     );
     const { grants, records, now } = setup(refresh);
     await grants.save('g', { ...fresh('a1'), expiresAt: now() });
-    const refreshing = grants.accessToken('g');
+    const refreshing = grants.freshTokens('g');
     await vi.waitFor(() => expect(refresh).toHaveBeenCalled());
     const removal = grants.remove('g');
     resolveRefresh(fresh('a2'));
@@ -299,12 +317,12 @@ describe('createMuralGrants defaults', () => {
         ...fresh('a1'),
         expiresAt: Date.now() + MURAL_REFRESH_MARGIN_MS + 5_000,
       });
-      expect(await grants.accessToken('g')).toBe('a1');
+      expect((await grants.freshTokens('g')).accessToken).toBe('a1');
       await grants.save('g', {
         ...fresh('a1'),
         expiresAt: Date.now() + MURAL_REFRESH_MARGIN_MS - 5_000,
       });
-      expect(await grants.accessToken('g')).toBe('a2');
+      expect((await grants.freshTokens('g')).accessToken).toBe('a2');
       expect(MURAL_REFRESH_MARGIN_MS).toBe(60_000);
       expect(fetchMock).toHaveBeenCalledTimes(1);
     } finally {

@@ -618,15 +618,27 @@ describe('the HTTP server', () => {
       expect((await callMcp(base, second.tokens.body.access_token)).status).toBe(200);
     });
 
-    it('reports the Mural scopes the server asks for', async () => {
+    it('reports the scopes Mural granted, and what the tools miss', async () => {
       await start();
+      mswServer.use(
+        ...createMuralOAuthMock({ grantedScopes: 'murals:read rooms:read identity:read' }).handlers,
+      );
       const { tokens } = await signInWithDcr(base);
       const call = await mcpRequest(base, tokens.body.access_token, 'tools/call', {
         name: 'check-user-scopes',
         arguments: {},
       });
       const content = call.message?.result?.['content'] as { text: string }[];
-      expect(JSON.parse(content[0]?.text ?? '{}')).toMatchObject({ missing: [] });
+      expect(JSON.parse(content[0]?.text ?? '{}')).toMatchObject({
+        scopes: ['murals:read', 'rooms:read', 'identity:read'],
+        missing: [
+          'workspaces:read',
+          'rooms:write',
+          'murals:write',
+          'templates:read',
+          'templates:write',
+        ],
+      });
     });
   });
 

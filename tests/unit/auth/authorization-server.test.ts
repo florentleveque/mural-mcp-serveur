@@ -9,6 +9,7 @@ import {
 } from '../../../src/auth/authorization-server.js';
 import { deriveKeyRing } from '../../../src/auth/keys.js';
 import type { Logger } from '../../../src/auth/log.js';
+import { MURAL_SCOPES } from '../../../src/auth/mural-upstream.js';
 import { ACCESS_TOKEN_TTL_S, providerErrorPage } from '../../../src/auth/provider.js';
 import { createRedisStore, type RecordStore } from '../../../src/auth/record-store.js';
 import {
@@ -215,6 +216,15 @@ describe('createAuthorizationServer', () => {
       ).toMatchObject({ grantId: 'g-1' });
     });
 
+    it('reads the Mural scopes as a list, and none from anything but a string', async () => {
+      const as = build(faultyStore().store);
+      const muralScopesOf = async (ms: unknown) =>
+        (await as.verifyAccessToken(await forge(ISSUER, { ms })))?.muralScopes;
+      expect(await muralScopesOf('murals:read  rooms:read')).toEqual(['murals:read', 'rooms:read']);
+      expect(await muralScopesOf(['murals:read'])).toBeUndefined();
+      expect(await muralScopesOf(undefined)).toBeUndefined();
+    });
+
     it('reads the scope as a list, and none from anything but a string', async () => {
       const as = build(faultyStore().store);
       const scopesOf = async (scope: unknown) =>
@@ -315,6 +325,7 @@ describe('createAuthorizationServer', () => {
         clientId,
         subject: `mural:${MURAL_USER_ID}`,
         scopes: ['mural'],
+        muralScopes: [...MURAL_SCOPES],
         expiresAt: expect.any(Number),
       });
       const lifetime = (verified?.expiresAt ?? 0) - Date.now() / 1000;

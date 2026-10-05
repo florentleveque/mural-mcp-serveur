@@ -157,7 +157,7 @@ const build = (overrides: Partial<InteractionDeps> = {}) => {
       save: async (grantId, tokens) => {
         saved.push([grantId, tokens]);
       },
-      accessToken: async () => 'unused',
+      freshTokens: async () => ({ accessToken: 'unused', expiresAt: 0 }),
       remove: async () => undefined,
     },
     consentMemory: consent,
@@ -256,15 +256,21 @@ describe('createInteractionRoutes', () => {
       expect(fakeRedis.expiryOf(`test:PkceVerifier:${hashId('uid-1')}`)).toBe(now + 600_000);
     });
 
-    it('hops from the Mural callback to the interaction, carrying only the code', () => {
+    it('hops from the Mural callback to the interaction, carrying only the code and the scopes', () => {
       const { routes } = build();
       const withCode = fakeRes();
-      routes.upstreamCallback(asRes(withCode), at('/oauth/callback?code=m-1&state=uid-1&x=y'));
+      routes.upstreamCallback(
+        asRes(withCode),
+        at('/oauth/callback?code=m-1&scopes=murals%3Aread%20rooms%3Aread&state=uid-1&x=y'),
+      );
       expect(withCode.status).toBe(302);
       expect(withCode.headers).toEqual({
-        Location: '/interaction/uid-1/callback?code=m-1',
+        Location: '/interaction/uid-1/callback?code=m-1&scopes=murals%3Aread+rooms%3Aread',
         'Cache-Control': 'no-store',
       });
+      const scopesOnly = fakeRes();
+      routes.upstreamCallback(asRes(scopesOnly), at('/oauth/callback?scopes=x&state=uid-1'));
+      expect(scopesOnly.headers['Location']).toBe('/interaction/uid-1/callback?scopes=x');
       const withoutCode = fakeRes();
       routes.upstreamCallback(asRes(withoutCode), at('/oauth/callback?error=denied&state=uid-1'));
       expect(withoutCode.headers['Location']).toBe('/interaction/uid-1/callback');
@@ -299,6 +305,28 @@ describe('createInteractionRoutes', () => {
       expect(fakeRedis.expiryOf(`test:PendingMuralTokens:${hashId(`${ACCOUNT}|${DCR}`)}`)).toBe(
         now + 600_000,
       );
+    });
+
+    it.each([
+      [
+        'the callback reports',
+        { grantedScopes: 'murals:read rooms:read' },
+        ['murals:read', 'rooms:read'],
+      ],
+      [
+        'the token answer reports, over the callback',
+        { grantedScopes: 'murals:read', tokenScope: 'rooms:read' },
+        ['rooms:read'],
+      ],
+      ['none, when Mural reports none', { grantedScopes: null }, undefined],
+    ])('keeps with the Mural tokens the scopes %s', async (_label, options, scopes) => {
+      mswServer.use(...createMuralOAuthMock(options).handlers);
+      const { routes, saved } = build();
+      await signIn(routes, 'uid-1', TRUSTED);
+      fake.details = consentPrompt(TRUSTED, TRUSTED_REDIRECT);
+      await get(routes, '/interaction/uid-1');
+      expect(saved).toHaveLength(1);
+      expect(saved[0]?.[1].scopes).toEqual(scopes);
     });
 
     it('refuses a callback without a code, or one no login step started', async () => {

@@ -25,13 +25,21 @@ export const MURAL_USER_ID = 'user-1234567890abcdefghijk';
 const API = 'https://app.mural.co/api/public/v1';
 const AUTHORIZE = `${API}/authorization/oauth2`;
 
+export interface MuralOAuthMockOptions {
+  accessTtlSeconds?: number;
+  /** The `scopes` of the callback: by default the scopes asked for, as Mural does; `null` leaves it out. */
+  grantedScopes?: string | null;
+  /** A standard `scope` in the token answer, which Mural does not send. */
+  tokenScope?: string;
+}
+
 /**
  * A stateful Mural OAuth upstream: codes and refresh tokens are single-use and
  * a refresh rotates, the client secret is required, and `/users/me` and
  * `/workspaces` answer only for a live access token. Opt in with
  * `mswServer.use(...mock.handlers)`.
  */
-export const createMuralOAuthMock = (options: { accessTtlSeconds?: number } = {}) => {
+export const createMuralOAuthMock = (options: MuralOAuthMockOptions = {}) => {
   const accessTtl = options.accessTtlSeconds ?? 900;
   let serial = 0;
   const codes = new Map<string, { redirectUri: string; challenge: string }>();
@@ -55,6 +63,7 @@ export const createMuralOAuthMock = (options: { accessTtlSeconds?: number } = {}
       refresh_token: refreshToken,
       token_type: 'bearer',
       expires_in: accessTtl,
+      ...(options.tokenScope === undefined ? {} : { scope: options.tokenScope }),
     });
   };
   const live = (request: Request): boolean => {
@@ -73,6 +82,9 @@ export const createMuralOAuthMock = (options: { accessTtlSeconds?: number } = {}
       });
       const back = new URL(url.searchParams.get('redirect_uri') ?? '');
       back.searchParams.set('code', code);
+      const granted =
+        options.grantedScopes === undefined ? url.searchParams.get('scope') : options.grantedScopes;
+      if (granted !== null) back.searchParams.set('scopes', granted);
       back.searchParams.set('state', url.searchParams.get('state') ?? '');
       return new HttpResponse(null, { status: 302, headers: { location: back.toString() } });
     }),

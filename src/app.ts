@@ -55,7 +55,8 @@ export const requestTokenProvider = (
       if (revoked) throw new Error(REVOKED_MESSAGE);
       return token.muralAccessToken;
     },
-    getScopes: async () => [...MURAL_SCOPES],
+    // Mural reporting none, it issued the token for the scopes we asked.
+    getScopes: async () => [...(token.muralScopes ?? MURAL_SCOPES)],
     invalidateAccessToken: async () => {
       revoked = true;
       await revokeGrant(token.grantId);
