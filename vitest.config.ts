@@ -8,8 +8,17 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
-      exclude: ['src/index.ts'], // MCP wiring, out of unit test scope
-      reporter: ['text'],
+      // json-summary feeds the coverage table in the CI job summary.
+      reporter: ['text', 'text-summary', 'json-summary'],
+      // Quality gate: the run fails below these baselines (measured values,
+      // rounded down). Ratchet them up as coverage improves; never lower them
+      // silently.
+      thresholds: {
+        statements: 98,
+        branches: 94,
+        functions: 99,
+        lines: 98,
+      },
     },
   },
 });

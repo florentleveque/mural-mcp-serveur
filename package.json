@@ -3,31 +3,22 @@
   "version": "1.3.1",
   "description": "Model Context Protocol server for Mural visual collaboration platform",
   "type": "module",
-  "main": "build/index.js",
-  "bin": {
-    "mural-mcp-serveur": "./build/index.js"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
-    "build": "tsc && chmod +x build/index.js",
+    "build": "tsc",
     "dev": "tsc --watch",
-    "start": "node build/index.js",
+    "dev:http": "pnpm build && node --env-file-if-exists=.env scripts/dev-http.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "format": "prettier --write \"**/*.{ts,js,json,md}\"",
-    "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",
-    "prepare": "husky",
-    "prepublishOnly": "pnpm build"
-  },
-  "lint-staged": {
-    "*.{ts,js,json,md}": "prettier --write",
-    "src/**/*.ts": "eslint --fix"
+    "test:smoke": "node scripts/smoke-http.mjs",
+    "prepare": "lefthook install || true",
+    "check": "biome check --error-on-warnings .",
+    "check:fix": "biome check --write .",
+    "test:mutation": "stryker run",
+    "test:mutation:canary": "node scripts/mutation-canary.mjs",
+    "test:mutation:diff": "node scripts/mutation-scope.mjs diff",
+    "test:mutation:summary": "node scripts/mutation-scope.mjs summary"
   },
   "keywords": [
     "mcp",
@@ -49,41 +40,38 @@
     "url": "https://github.com/florentleveque/mural-mcp-serveur/issues"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "24.x"
   },
-  "packageManager": "pnpm@10.12.1",
-  "files": [
-    "build",
-    "README.md",
-    "LICENSE"
-  ],
+  "packageManager": "pnpm@12.9.1+sha512.06b055fff5cd20dc12781de173ced3310ce0951bf2ec620211a16045d5444d5c93a663210764ef29a653a610459ba0368f0e74f84d80c54723cf95aae7bc0d6d",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.17.1",
-    "dotenv": "^17.2.1",
+    "@modelcontextprotocol/node": "^2.1.0",
+    "@modelcontextprotocol/server": "^2.2.0",
+    "@upstash/redis": "^1.39.0",
+    "express": "^5.2.1",
+    "jose": "^6.2.12",
+    "oidc-provider": "~9.12.2",
     "zod": "^4.0.14"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
+    "@biomejs/biome": "2.5.14",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/exec": "^7.1.0",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^12.0.10",
     "@semantic-release/npm": "^13.2.0",
     "@semantic-release/release-notes-generator": "^14.0.3",
-    "@types/node": "^22.19.20",
-    "@vitest/coverage-v8": "^4.1.8",
+    "@stryker-mutator/core": "^10.0.0",
+    "@stryker-mutator/vitest-runner": "^10.0.0",
+    "@types/express": "^5.0.6",
+    "@types/node": "~24.19.0",
+    "@types/oidc-provider": "~9.12.1",
+    "@vitest/coverage-v8": "^5.0.2",
     "conventional-changelog-conventionalcommits": "^8.0.0",
-    "eslint": "^10.4.1",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.6",
-    "eslint-plugin-unicorn": "^64.0.0",
-    "husky": "^9.1.7",
-    "lint-staged": "^17.0.7",
-    "prettier": "^3.8.3",
+    "lefthook": "^2.1.15",
+    "msw": "^2.15.0",
     "semantic-release": "^25.0.9",
     "typescript": "^5.9.2",
-    "typescript-eslint": "^8.60.1",
-    "vitest": "^4.1.8"
+    "vitest": "^5.0.2"
   }
 }

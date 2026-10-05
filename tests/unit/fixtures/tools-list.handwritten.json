@@ -1,0 +1,1032 @@
+[
+  {
+    "name": "list-workspaces",
+    "description": "List all workspaces the authenticated user has access to. Compact view keeps: id, name. Pass verbose=true for the full raw objects (description, image, locked, suspended, createdOn, ...).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "number",
+          "description": "Maximum number of workspaces to return (optional)",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "offset": {
+          "type": "number",
+          "description": "Number of workspaces to skip for pagination (optional)",
+          "minimum": 0
+        },
+        "verbose": {
+          "type": "boolean",
+          "description": "If true, return the full raw objects instead of the compact view (optional, defaults to false)"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "get-workspace",
+    "description": "Get detailed information about a specific workspace. Compact view keeps: id, name. Pass verbose=true for the full raw object (description, image, locked, suspended, createdOn, ...).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "description": "The unique identifier of the workspace"
+        },
+        "verbose": {
+          "type": "boolean",
+          "description": "If true, return the full raw object instead of the compact view (optional, defaults to false)"
+        }
+      },
+      "required": ["workspaceId"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "test-connection",
+    "description": "Test the connection to Mural API and verify authentication",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "clear-auth",
+    "description": "Clear stored authentication tokens (requires re-authentication)",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "debug-api-response",
+    "description": "Debug tool: Show raw API response from workspaces endpoint for troubleshooting",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "list-workspace-boards",
+    "description": "List all boards (murals) within a specific workspace. Compact view keeps: id, title, status, roomId, workspaceId, infinite, updatedOn, _canvasLink. Pass verbose=true for the full raw objects (thumbnailUrl, sharing/visitor links, state, createdBy, ...).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "description": "The unique identifier of the workspace"
+        },
+        "verbose": {
+          "type": "boolean",
+          "description": "If true, return the full raw objects instead of the compact view (optional, defaults to false)"
+        }
+      },
+      "required": ["workspaceId"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "list-room-boards",
+    "description": "List all boards (murals) within a specific room. Compact view keeps: id, title, status, roomId, workspaceId, infinite, updatedOn, _canvasLink. Pass verbose=true for the full raw objects (thumbnailUrl, sharing/visitor links, state, createdBy, ...).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roomId": {
+          "type": "string",
+          "description": "The unique identifier of the room"
+        },
+        "verbose": {
+          "type": "boolean",
+          "description": "If true, return the full raw objects instead of the compact view (optional, defaults to false)"
+        }
+      },
+      "required": ["roomId"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "list-workspace-rooms",
+    "description": "List all rooms within a specific workspace (use a room id with list-room-boards). Returns all pages. Compact view keeps: id, name, type, workspaceId. Pass verbose=true for the full raw objects (confidential, isMember, description, favorite, createdBy, ...).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "description": "The unique identifier of the workspace"
+        },
+        "openOnly": {
+          "type": "boolean",
+          "description": "If true, list only open (discoverable) rooms instead of all rooms (optional, defaults to false)"
+        },
+        "verbose": {
+          "type": "boolean",
+          "description": "If true, return the full raw objects instead of the compact view (optional, defaults to false)"
+        }
+      },
+      "required": ["workspaceId"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "list-workspace-templates",
+    "description": "List a workspace's templates (default + custom), or search them by name. Returns all pages. Compact view keeps: id, name, description, type. Pass verbose=true for the full raw objects (thumbUrl, viewLink, createdBy, updatedOn, ...).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "description": "The unique identifier of the workspace"
+        },
+        "searchQuery": {
+          "type": "string",
+          "description": "Optional. If provided, search templates by name instead of listing all"
+        },
+        "withoutDefault": {
+          "type": "boolean",
+          "description": "If true, exclude Mural default templates and return only custom ones (optional, ignored when searchQuery is set)"
+        },
+        "verbose": {
+          "type": "boolean",
+          "description": "If true, return the full raw objects instead of the compact view (optional, defaults to false)"
+        }
+      },
+      "required": ["workspaceId"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "create-mural-from-template",
+    "description": "Create a new mural in a room from a template",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "templateId": {
+          "type": "string",
+          "description": "The unique identifier of the template to instantiate"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the new mural"
+        },
+        "roomId": {
+          "type": "number",
+          "description": "The numeric identifier of the destination room"
+        },
+        "folderId": {
+          "type": "string",
+          "description": "Optional destination folder id within the room"
+        }
+      },
+      "required": ["templateId", "title", "roomId"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "create-room",
+    "description": "Create a new room in a workspace",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "description": "The unique identifier of the workspace"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the new room"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["open", "private"],
+          "description": "Room visibility: \"open\" (discoverable by workspace members) or \"private\""
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional description of the room"
+        },
+        "confidential": {
+          "type": "boolean",
+          "description": "Optional. Mark the room as confidential (defaults to false)"
+        }
+      },
+      "required": ["workspaceId", "name", "type"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "create-mural",
+    "description": "Create a new blank mural in a room (requires murals:write)",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roomId": {
+          "type": "number",
+          "description": "The numeric identifier of the destination room"
+        },
+        "title": {
+          "type": "string",
+          "description": "Optional title of the new mural"
+        },
+        "backgroundColor": {
+          "type": "string",
+          "description": "Optional background color (hex, e.g. #FFFFFFFF)"
+        },
+        "width": {
+          "type": "number",
+          "description": "Optional canvas width in pixels"
+        },
+        "height": {
+          "type": "number",
+          "description": "Optional canvas height in pixels"
+        },
+        "infinite": {
+          "type": "boolean",
+          "description": "Optional. Whether the canvas is infinite"
+        },
+        "folderId": {
+          "type": "string",
+          "description": "Optional destination folder id within the room"
+        }
+      },
+      "required": ["roomId"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "update-mural",
+    "description": "Update a mural's properties by id (title, status, dimensions, sharing permissions...). Provide at least one field (requires murals:write)",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "muralId": {
+          "type": "string",
+          "description": "The unique identifier of the mural to update"
+        },
+        "title": {
+          "type": "string"
+        },
+        "backgroundColor": {
+          "type": "string",
+          "description": "Hex background color"
+        },
+        "favorite": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "archived"],
+          "description": "Set to \"archived\" to archive the mural (non-destructive alternative to delete)"
+        },
+        "width": {
+          "type": "number",
+          "description": "Canvas width (3000-60000)"
+        },
+        "height": {
+          "type": "number",
+          "description": "Canvas height (3000-60000)"
+        },
+        "infinite": {
+          "type": "boolean"
+        },
+        "visitorsPermission": {
+          "type": "string",
+          "enum": ["read", "write", "none"]
+        },
+        "workspaceMembersPermission": {
+          "type": "string",
+          "enum": ["read", "write", "none"]
+        },
+        "folderId": {
+          "type": "string"
+        }
+      },
+      "required": ["muralId"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "delete-mural",
+    "description": "Permanently delete a mural by its id (irreversible; requires murals:write). For a non-destructive alternative, use update-mural with status \"archived\"",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "muralId": {
+          "type": "string",
+          "description": "The unique identifier of the mural to delete"
+        }
+      },
+      "required": ["muralId"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "duplicate-mural",
+    "description": "Duplicate an existing mural into a room (requires murals:write)",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "muralId": {
+          "type": "string",
+          "description": "The unique identifier of the mural to duplicate"
+        },
+        "roomId": {
+          "type": "number",
+          "description": "The numeric identifier of the destination room"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the duplicated mural"
+        },
+        "folderId": {
+          "type": "string",
+          "description": "Optional destination folder id"
+        },
+        "infinite": {
+          "type": "boolean",
+          "description": "Optional. Whether the canvas is infinite"
+        }
+      },
+      "required": ["muralId", "roomId", "title"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "export-mural",
+    "description": "Start an ASYNCHRONOUS mural export (requires murals:read). Returns an exportId — it does NOT return the file. To get the file, call download-export with this exportId (retry until ready:true). Accepted downloadFormat values are defined by the Mural API",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "muralId": {
+          "type": "string",
+          "description": "The unique identifier of the mural to export"
+        },
+        "downloadFormat": {
+          "type": "string",
+          "description": "The export format (e.g. pdf, png, zip — values defined by the Mural API)"
+        }
+      },
+      "required": ["muralId", "downloadFormat"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "download-export",
+    "description": "Get the download URL of a mural export (requires murals:read). Single-shot: if the export is not ready yet it returns ready:false and no url. Normal usage: call this with the exportId returned by export-mural and, while it returns ready:false, wait a few seconds and call it again until ready:true. The url is a signed link that needs no authentication; status.expireOn is when Mural expires the export, so fetch the file soon",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "muralId": {
+          "type": "string",
+          "description": "The unique identifier of the mural being exported"
+        },
+        "exportId": {
+          "type": "string",
+          "description": "The export job identifier returned by export-mural"
+        }
+      },
+      "required": ["muralId", "exportId"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "get-board",
+    "description": "Get detailed information about a specific board (mural). Compact view keeps: id, title, status, roomId, workspaceId, infinite, updatedOn, _canvasLink. Pass verbose=true for the full raw object (thumbnailUrl, sharing/visitor links, state, createdBy, ...).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "boardId": {
+          "type": "string",
+          "description": "The unique identifier of the board/mural"
+        },
+        "verbose": {
+          "type": "boolean",
+          "description": "If true, return the full raw object instead of the compact view (optional, defaults to false)"
+        }
+      },
+      "required": ["boardId"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "check-user-scopes",
+    "description": "Check the current user's OAuth scopes and permissions",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "get-mural-widgets",
+    "description": "Get all widgets from a mural. Compact view keeps: id, type, x, y, width, height, parentId plus per-type content (text, shape, backgroundColor, title, url, filename, points, ...). Pass verbose=true for the full raw widget objects (full style, rotation, authorship, flags, ...).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "muralId": {
+          "type": "string",
+          "description": "The unique identifier of the mural"
+        },
+        "verbose": {
+          "type": "boolean",
+          "description": "If true, return the full raw widget objects instead of the compact view (optional, defaults to false)"
+        }
+      },
+      "required": ["muralId"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "get-mural-widget",
+    "description": "Get details of a specific widget by its ID (requires both the mural id and the widget id). Compact view keeps: id, type, x, y, width, height, parentId plus per-type content (text, shape, backgroundColor, title, url, filename, points, ...). Pass verbose=true for the full raw widget object (full style, rotation, authorship, flags, ...).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "muralId": {
+          "type": "string",
+          "description": "The unique identifier of the mural"
+        },
+        "widgetId": {
+          "type": "string",
+          "description": "The unique identifier of the widget"
+        },
+        "verbose": {
+          "type": "boolean",
+          "description": "If true, return the full raw widget object instead of the compact view (optional, defaults to false)"
+        }
+      },
+      "required": ["muralId", "widgetId"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "delete-widget",
+    "description": "Permanently delete a widget from a mural by its ID (irreversible)",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "muralId": {
+          "type": "string",
+          "description": "The unique identifier of the mural"
+        },
+        "widgetId": {
+          "type": "string",
+          "description": "The unique identifier of the widget to delete"
+        }
+      },
+      "required": ["muralId", "widgetId"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "create-sticky-notes",
+    "description": "Create sticky notes on a mural (max 1000 per request)",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "muralId": {
+          "type": "string",
+          "description": "The unique identifier of the mural"
+        },
+        "stickyNotes": {
+          "type": "array",
+          "description": "Array of sticky notes to create",
+          "items": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number",
+                "description": "X coordinate position"
+              },
+              "y": {
+                "type": "number",
+                "description": "Y coordinate position"
+              },
+              "text": {
+                "type": "string",
+                "description": "Text content of the sticky note"
+              },
+              "width": {
+                "type": "number",
+                "description": "Width in pixels (optional)"
+              },
+              "height": {
+                "type": "number",
+                "description": "Height in pixels (optional)"
+              },
+              "style": {
+                "type": "object",
+                "description": "Visual styling properties (optional)",
+                "properties": {
+                  "backgroundColor": {
+                    "type": "string",
+                    "description": "Background color"
+                  },
+                  "textColor": {
+                    "type": "string",
+                    "description": "Text color"
+                  },
+                  "fontSize": {
+                    "type": "number",
+                    "description": "Font size"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": ["x", "y", "text"],
+            "additionalProperties": false
+          },
+          "maxItems": 1000,
+          "minItems": 1
+        }
+      },
+      "required": ["muralId", "stickyNotes"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "create-shapes",
+    "description": "Create shape widgets (rectangle, circle, triangle, diamond) on a mural. Each shape supports fill, border, and optional text.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "muralId": {
+          "type": "string",
+          "description": "The unique identifier of the mural"
+        },
+        "shapes": {
+          "type": "array",
+          "description": "Array of shape widgets to create",
+          "items": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "width": {
+                "type": "number"
+              },
+              "height": {
+                "type": "number"
+              },
+              "shape": {
+                "type": "string",
+                "enum": ["rectangle", "circle", "triangle", "diamond"],
+                "description": "Shape geometry"
+              },
+              "text": {
+                "type": "string",
+                "description": "Optional text content rendered inside the shape"
+              },
+              "rotation": {
+                "type": "number"
+              },
+              "style": {
+                "type": "object",
+                "properties": {
+                  "backgroundColor": {
+                    "type": "string"
+                  },
+                  "borderColor": {
+                    "type": "string"
+                  },
+                  "borderWidth": {
+                    "type": "number"
+                  },
+                  "borderStyle": {
+                    "type": "string",
+                    "enum": ["solid", "dashed", "dotted"]
+                  },
+                  "fontColor": {
+                    "type": "string"
+                  },
+                  "fontSize": {
+                    "type": "number"
+                  },
+                  "fontFamily": {
+                    "type": "string"
+                  },
+                  "bold": {
+                    "type": "boolean"
+                  },
+                  "italic": {
+                    "type": "boolean"
+                  },
+                  "textAlign": {
+                    "type": "string",
+                    "enum": ["left", "center", "right"]
+                  }
+                },
+                "additionalProperties": true
+              }
+            },
+            "required": ["x", "y", "width", "height", "shape"],
+            "additionalProperties": true
+          },
+          "minItems": 1
+        }
+      },
+      "required": ["muralId", "shapes"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "create-arrows",
+    "description": "Create arrow (connector) widgets on a mural. Arrows can anchor to other widgets via startRefId/endRefId or use absolute start/end points in the points array.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "muralId": {
+          "type": "string",
+          "description": "The unique identifier of the mural"
+        },
+        "arrows": {
+          "type": "array",
+          "description": "Array of arrow widgets to create",
+          "items": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "width": {
+                "type": "number"
+              },
+              "height": {
+                "type": "number"
+              },
+              "points": {
+                "type": "array",
+                "description": "Two or more {x,y} points defining the arrow path. Coordinates are relative to x/y or absolute depending on Mural API version.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["x", "y"],
+                  "additionalProperties": false
+                },
+                "minItems": 2
+              },
+              "arrowType": {
+                "type": "string",
+                "enum": ["straight", "curved", "orthogonal"]
+              },
+              "tip": {
+                "type": "string",
+                "enum": ["no tip", "single", "double"]
+              },
+              "startRefId": {
+                "type": "string",
+                "description": "Widget ID that the arrow starts at (anchors to widget)"
+              },
+              "endRefId": {
+                "type": "string",
+                "description": "Widget ID that the arrow ends at (anchors to widget)"
+              },
+              "label": {
+                "type": "object",
+                "description": "Optional label attached to the arrow"
+              },
+              "style": {
+                "type": "object",
+                "properties": {
+                  "color": {
+                    "type": "string"
+                  },
+                  "width": {
+                    "type": "number"
+                  },
+                  "arrowheadType": {
+                    "type": "string"
+                  },
+                  "strokeStyle": {
+                    "type": "string",
+                    "enum": ["solid", "dashed", "dotted"]
+                  }
+                },
+                "additionalProperties": true
+              }
+            },
+            "required": ["x", "y", "width", "height", "points"],
+            "additionalProperties": true
+          },
+          "minItems": 1
+        }
+      },
+      "required": ["muralId", "arrows"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "create-text-boxes",
+    "description": "Create text box widgets on a mural. Unlike sticky notes, text boxes support full font color, font size, and alignment.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "muralId": {
+          "type": "string"
+        },
+        "textBoxes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "width": {
+                "type": "number"
+              },
+              "height": {
+                "type": "number"
+              },
+              "text": {
+                "type": "string"
+              },
+              "rotation": {
+                "type": "number"
+              },
+              "style": {
+                "type": "object",
+                "properties": {
+                  "backgroundColor": {
+                    "type": "string"
+                  },
+                  "fontColor": {
+                    "type": "string"
+                  },
+                  "fontSize": {
+                    "type": "number"
+                  },
+                  "fontFamily": {
+                    "type": "string"
+                  },
+                  "bold": {
+                    "type": "boolean"
+                  },
+                  "italic": {
+                    "type": "boolean"
+                  },
+                  "textAlign": {
+                    "type": "string",
+                    "enum": ["left", "center", "right"]
+                  },
+                  "border": {
+                    "type": "boolean"
+                  },
+                  "borderColor": {
+                    "type": "string"
+                  },
+                  "borderWidth": {
+                    "type": "number"
+                  }
+                },
+                "additionalProperties": true
+              }
+            },
+            "required": ["x", "y", "width", "height", "text"],
+            "additionalProperties": true
+          },
+          "minItems": 1
+        }
+      },
+      "required": ["muralId", "textBoxes"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "create-titles",
+    "description": "Create title widgets (large heading text) on a mural.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "muralId": {
+          "type": "string"
+        },
+        "titles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "width": {
+                "type": "number"
+              },
+              "height": {
+                "type": "number"
+              },
+              "text": {
+                "type": "string"
+              },
+              "style": {
+                "type": "object",
+                "properties": {
+                  "fontColor": {
+                    "type": "string"
+                  },
+                  "fontSize": {
+                    "type": "number"
+                  },
+                  "fontFamily": {
+                    "type": "string"
+                  },
+                  "bold": {
+                    "type": "boolean"
+                  },
+                  "italic": {
+                    "type": "boolean"
+                  },
+                  "textAlign": {
+                    "type": "string",
+                    "enum": ["left", "center", "right"]
+                  }
+                },
+                "additionalProperties": true
+              }
+            },
+            "required": ["x", "y", "text"],
+            "additionalProperties": true
+          },
+          "minItems": 1
+        }
+      },
+      "required": ["muralId", "titles"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "create-areas",
+    "description": "Create area widgets (grouping containers) on a mural.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "muralId": {
+          "type": "string"
+        },
+        "areas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "width": {
+                "type": "number"
+              },
+              "height": {
+                "type": "number"
+              },
+              "title": {
+                "type": "string"
+              },
+              "style": {
+                "type": "object",
+                "properties": {
+                  "backgroundColor": {
+                    "type": "string"
+                  },
+                  "borderColor": {
+                    "type": "string"
+                  },
+                  "borderWidth": {
+                    "type": "number"
+                  },
+                  "fontColor": {
+                    "type": "string"
+                  },
+                  "fontSize": {
+                    "type": "number"
+                  }
+                },
+                "additionalProperties": true
+              }
+            },
+            "required": ["x", "y", "width", "height"],
+            "additionalProperties": true
+          },
+          "minItems": 1
+        }
+      },
+      "required": ["muralId", "areas"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "update-widget",
+    "description": "Update any widget by kind and ID (sticky-note, shape, arrow, text-box, title, area). Accepts arbitrary field updates.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "muralId": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["sticky-note", "shape", "arrow", "text-box", "title", "area"]
+        },
+        "widgetId": {
+          "type": "string"
+        },
+        "updates": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": ["muralId", "kind", "widgetId", "updates"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "update-sticky-note",
+    "description": "Update a sticky note widget in a mural",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "muralId": {
+          "type": "string",
+          "description": "The unique identifier of the mural"
+        },
+        "widgetId": {
+          "type": "string",
+          "description": "The unique identifier of the sticky note widget to update"
+        },
+        "updates": {
+          "type": "object",
+          "description": "The properties to update",
+          "properties": {
+            "x": {
+              "type": "number",
+              "description": "X coordinate position"
+            },
+            "y": {
+              "type": "number",
+              "description": "Y coordinate position"
+            },
+            "text": {
+              "type": "string",
+              "description": "Text content of the sticky note"
+            },
+            "width": {
+              "type": "number",
+              "description": "Width in pixels"
+            },
+            "height": {
+              "type": "number",
+              "description": "Height in pixels"
+            },
+            "style": {
+              "type": "object",
+              "description": "Visual styling properties",
+              "properties": {
+                "backgroundColor": {
+                  "type": "string",
+                  "description": "Background color"
+                },
+                "textColor": {
+                  "type": "string",
+                  "description": "Text color"
+                },
+                "fontSize": {
+                  "type": "number",
+                  "description": "Font size"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": ["muralId", "widgetId", "updates"],
+      "additionalProperties": false
+    }
+  }
+]
