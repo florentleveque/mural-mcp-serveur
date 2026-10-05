@@ -595,73 +595,51 @@
     }
   },
   {
-    "name": "test-connection",
-    "description": "Test the connection to Mural API and verify authentication",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "clear-auth",
-    "description": "Clear stored authentication tokens (requires re-authentication)",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "debug-api-response",
-    "description": "Debug tool: Show raw API response from workspaces endpoint for troubleshooting",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "check-user-scopes",
-    "description": "Check the current user's OAuth scopes and permissions",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
-    }
-  },
-  {
     "name": "delete-widget",
+    "title": "Delete Widget",
     "description": "Permanently delete a widget from a mural by its ID (irreversible)",
     "inputSchema": {
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "muralId": {
           "type": "string",
+          "minLength": 1,
           "description": "The unique identifier of the mural"
         },
         "widgetId": {
           "type": "string",
+          "minLength": 1,
           "description": "The unique identifier of the widget to delete"
         }
       },
       "required": ["muralId", "widgetId"],
       "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": true
     }
   },
   {
     "name": "create-sticky-notes",
+    "title": "Create Sticky Notes",
     "description": "Create sticky notes on a mural (max 1000 per request)",
     "inputSchema": {
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "muralId": {
           "type": "string",
+          "minLength": 1,
           "description": "The unique identifier of the mural"
         },
         "stickyNotes": {
+          "minItems": 1,
+          "maxItems": 1000,
           "type": "array",
-          "description": "Array of sticky notes to create",
           "items": {
             "type": "object",
             "properties": {
@@ -675,31 +653,32 @@
               },
               "text": {
                 "type": "string",
+                "minLength": 1,
                 "description": "Text content of the sticky note"
               },
               "width": {
-                "type": "number",
-                "description": "Width in pixels (optional)"
+                "description": "Width in pixels (optional)",
+                "type": "number"
               },
               "height": {
-                "type": "number",
-                "description": "Height in pixels (optional)"
+                "description": "Height in pixels (optional)",
+                "type": "number"
               },
               "style": {
-                "type": "object",
                 "description": "Visual styling properties (optional)",
+                "type": "object",
                 "properties": {
                   "backgroundColor": {
-                    "type": "string",
-                    "description": "Background color"
+                    "description": "Background color",
+                    "type": "string"
                   },
                   "textColor": {
-                    "type": "string",
-                    "description": "Text color"
+                    "description": "Text color",
+                    "type": "string"
                   },
                   "fontSize": {
-                    "type": "number",
-                    "description": "Font size"
+                    "description": "Font size",
+                    "type": "number"
                   }
                 },
                 "additionalProperties": false
@@ -708,27 +687,35 @@
             "required": ["x", "y", "text"],
             "additionalProperties": false
           },
-          "maxItems": 1000,
-          "minItems": 1
+          "description": "Array of sticky notes to create"
         }
       },
       "required": ["muralId", "stickyNotes"],
       "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true
     }
   },
   {
     "name": "create-shapes",
+    "title": "Create Shapes",
     "description": "Create shape widgets (rectangle, circle, triangle, diamond) on a mural. Each shape supports fill, border, and optional text.",
     "inputSchema": {
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "muralId": {
           "type": "string",
+          "minLength": 1,
           "description": "The unique identifier of the mural"
         },
         "shapes": {
+          "minItems": 1,
           "type": "array",
-          "description": "Array of shape widgets to create",
           "items": {
             "type": "object",
             "properties": {
@@ -750,8 +737,8 @@
                 "description": "Shape geometry"
               },
               "text": {
-                "type": "string",
-                "description": "Optional text content rendered inside the shape"
+                "description": "Optional text content rendered inside the shape",
+                "type": "string"
               },
               "rotation": {
                 "type": "number"
@@ -792,32 +779,41 @@
                     "enum": ["left", "center", "right"]
                   }
                 },
-                "additionalProperties": true
+                "additionalProperties": {}
               }
             },
             "required": ["x", "y", "width", "height", "shape"],
-            "additionalProperties": true
+            "additionalProperties": {}
           },
-          "minItems": 1
+          "description": "Array of shape widgets to create"
         }
       },
       "required": ["muralId", "shapes"],
       "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true
     }
   },
   {
     "name": "create-arrows",
+    "title": "Create Arrows",
     "description": "Create arrow (connector) widgets on a mural. Arrows can anchor to other widgets via startRefId/endRefId or use absolute start/end points in the points array.",
     "inputSchema": {
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "muralId": {
           "type": "string",
+          "minLength": 1,
           "description": "The unique identifier of the mural"
         },
         "arrows": {
+          "minItems": 1,
           "type": "array",
-          "description": "Array of arrow widgets to create",
           "items": {
             "type": "object",
             "properties": {
@@ -834,8 +830,8 @@
                 "type": "number"
               },
               "points": {
+                "minItems": 2,
                 "type": "array",
-                "description": "Two or more {x,y} points defining the arrow path. Coordinates are relative to x/y or absolute depending on Mural API version.",
                 "items": {
                   "type": "object",
                   "properties": {
@@ -849,7 +845,7 @@
                   "required": ["x", "y"],
                   "additionalProperties": false
                 },
-                "minItems": 2
+                "description": "Two or more {x,y} points defining the arrow path. Coordinates are relative to x/y or absolute depending on Mural API version."
               },
               "arrowType": {
                 "type": "string",
@@ -860,16 +856,20 @@
                 "enum": ["no tip", "single", "double"]
               },
               "startRefId": {
-                "type": "string",
-                "description": "Widget ID that the arrow starts at (anchors to widget)"
+                "description": "Widget ID that the arrow starts at (anchors to widget)",
+                "type": "string"
               },
               "endRefId": {
-                "type": "string",
-                "description": "Widget ID that the arrow ends at (anchors to widget)"
+                "description": "Widget ID that the arrow ends at (anchors to widget)",
+                "type": "string"
               },
               "label": {
+                "description": "Optional label attached to the arrow",
                 "type": "object",
-                "description": "Optional label attached to the arrow"
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
               },
               "style": {
                 "type": "object",
@@ -888,29 +888,40 @@
                     "enum": ["solid", "dashed", "dotted"]
                   }
                 },
-                "additionalProperties": true
+                "additionalProperties": {}
               }
             },
             "required": ["x", "y", "width", "height", "points"],
-            "additionalProperties": true
+            "additionalProperties": {}
           },
-          "minItems": 1
+          "description": "Array of arrow widgets to create"
         }
       },
       "required": ["muralId", "arrows"],
       "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true
     }
   },
   {
     "name": "create-text-boxes",
+    "title": "Create Text Boxes",
     "description": "Create text box widgets on a mural. Unlike sticky notes, text boxes support full font color, font size, and alignment.",
     "inputSchema": {
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "muralId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1,
+          "description": "The unique identifier of the mural"
         },
         "textBoxes": {
+          "minItems": 1,
           "type": "array",
           "items": {
             "type": "object",
@@ -968,29 +979,39 @@
                     "type": "number"
                   }
                 },
-                "additionalProperties": true
+                "additionalProperties": {}
               }
             },
             "required": ["x", "y", "width", "height", "text"],
-            "additionalProperties": true
-          },
-          "minItems": 1
+            "additionalProperties": {}
+          }
         }
       },
       "required": ["muralId", "textBoxes"],
       "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true
     }
   },
   {
     "name": "create-titles",
+    "title": "Create Titles",
     "description": "Create title widgets (large heading text) on a mural.",
     "inputSchema": {
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "muralId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1,
+          "description": "The unique identifier of the mural"
         },
         "titles": {
+          "minItems": 1,
           "type": "array",
           "items": {
             "type": "object",
@@ -1033,29 +1054,39 @@
                     "enum": ["left", "center", "right"]
                   }
                 },
-                "additionalProperties": true
+                "additionalProperties": {}
               }
             },
             "required": ["x", "y", "text"],
-            "additionalProperties": true
-          },
-          "minItems": 1
+            "additionalProperties": {}
+          }
         }
       },
       "required": ["muralId", "titles"],
       "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true
     }
   },
   {
     "name": "create-areas",
+    "title": "Create Areas",
     "description": "Create area widgets (grouping containers) on a mural.",
     "inputSchema": {
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "muralId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1,
+          "description": "The unique identifier of the mural"
         },
         "areas": {
+          "minItems": 1,
           "type": "array",
           "items": {
             "type": "object",
@@ -1094,106 +1125,173 @@
                     "type": "number"
                   }
                 },
-                "additionalProperties": true
+                "additionalProperties": {}
               }
             },
             "required": ["x", "y", "width", "height"],
-            "additionalProperties": true
-          },
-          "minItems": 1
+            "additionalProperties": {}
+          }
         }
       },
       "required": ["muralId", "areas"],
       "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true
     }
   },
   {
     "name": "update-widget",
+    "title": "Update Widget",
     "description": "Update any widget by kind and ID (sticky-note, shape, arrow, text-box, title, area). Accepts arbitrary field updates.",
     "inputSchema": {
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "muralId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1,
+          "description": "The unique identifier of the mural"
         },
         "kind": {
           "type": "string",
           "enum": ["sticky-note", "shape", "arrow", "text-box", "title", "area"]
         },
         "widgetId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1,
+          "description": "The unique identifier of the widget"
         },
         "updates": {
           "type": "object",
-          "additionalProperties": true
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
         }
       },
       "required": ["muralId", "kind", "widgetId", "updates"],
       "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": true
     }
   },
   {
     "name": "update-sticky-note",
+    "title": "Update Sticky Note",
     "description": "Update a sticky note widget in a mural",
     "inputSchema": {
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "muralId": {
           "type": "string",
+          "minLength": 1,
           "description": "The unique identifier of the mural"
         },
         "widgetId": {
           "type": "string",
+          "minLength": 1,
           "description": "The unique identifier of the sticky note widget to update"
         },
         "updates": {
           "type": "object",
-          "description": "The properties to update",
           "properties": {
             "x": {
-              "type": "number",
-              "description": "X coordinate position"
+              "description": "X coordinate position",
+              "type": "number"
             },
             "y": {
-              "type": "number",
-              "description": "Y coordinate position"
+              "description": "Y coordinate position",
+              "type": "number"
             },
             "text": {
+              "description": "Text content of the sticky note",
               "type": "string",
-              "description": "Text content of the sticky note"
+              "minLength": 1
             },
             "width": {
-              "type": "number",
-              "description": "Width in pixels"
+              "description": "Width in pixels",
+              "type": "number"
             },
             "height": {
-              "type": "number",
-              "description": "Height in pixels"
+              "description": "Height in pixels",
+              "type": "number"
             },
             "style": {
-              "type": "object",
               "description": "Visual styling properties",
+              "type": "object",
               "properties": {
                 "backgroundColor": {
-                  "type": "string",
-                  "description": "Background color"
+                  "description": "Background color",
+                  "type": "string"
                 },
                 "textColor": {
-                  "type": "string",
-                  "description": "Text color"
+                  "description": "Text color",
+                  "type": "string"
                 },
                 "fontSize": {
-                  "type": "number",
-                  "description": "Font size"
+                  "description": "Font size",
+                  "type": "number"
                 }
               },
               "additionalProperties": false
             }
           },
-          "additionalProperties": false
+          "additionalProperties": false,
+          "description": "The properties to update"
         }
       },
       "required": ["muralId", "widgetId", "updates"],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "test-connection",
+    "description": "Test the connection to Mural API and verify authentication",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "clear-auth",
+    "description": "Clear stored authentication tokens (requires re-authentication)",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "debug-api-response",
+    "description": "Debug tool: Show raw API response from workspaces endpoint for troubleshooting",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "check-user-scopes",
+    "description": "Check the current user's OAuth scopes and permissions",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
       "additionalProperties": false
     }
   }
