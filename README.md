@@ -63,22 +63,29 @@ connection out.
 ## Mural access: an Unlisted app
 
 The server signs in to Mural through one Mural OAuth app, published as
-**Unlisted**. Unlisted means:
-
-- The app is not in Mural's public app directory. Only people who have its
-  listing link can see it.
-- A **workspace admin** must enable the app once in each workspace, from that
-  link. Mural then lists it in the workspace settings, under Apps.
-- In a workspace where the app is not enabled, Mural refuses the sign-in and
-  the connection fails.
+**Unlisted**: it is not in Mural's public app directory, and only people who
+have its listing link can see it.
 
 **Listing link:**
-<https://app.mural.co/me/integrations/listing/6ff63b23-e411-4e9a-a4c1-97f68f758474>.
-A workspace admin opens it while signed in to Mural and selects **Enable in
-admin dashboard**.
+<https://app.mural.co/me/integrations/listing/6ff63b23-e411-4e9a-a4c1-97f68f758474>
+
+To roll the server out in a Mural workspace:
+
+1. A **workspace admin** opens the listing link while signed in to Mural and
+   selects **Enable in admin dashboard**. Mural enables the app in that admin's
+   workspace and opens the workspace settings at **Apps**, where the app is
+   listed under **Enabled Apps** (tested with an admin of a single workspace).
+2. Each member connects their own MCP client (see
+   [Connect an MCP client](#connect-an-mcp-client)) and signs in with their own
+   Mural account.
 
 Not a workspace admin? Send the listing link to an admin of your workspace and
 ask them to enable the app.
+
+Mural documents that admins with the link can enable the app in the workspaces
+they choose, not what a member can do in a workspace where it is not enabled:
+whether the sign-in or the API calls then fail is not verified. The app's owner
+reaches every workspace they belong to either way.
 
 ## Tools Available
 
