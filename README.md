@@ -72,8 +72,10 @@ The server signs in to Mural through one Mural OAuth app, published as
 - In a workspace where the app is not enabled, Mural refuses the sign-in and
   the connection fails.
 
-**Listing link:** _not published yet_ (placeholder: the Mural "App Link" goes
-here once the app is published as Unlisted).
+**Listing link:**
+<https://app.mural.co/me/integrations/listing/6ff63b23-e411-4e9a-a4c1-97f68f758474>.
+A workspace admin opens it while signed in to Mural and selects **Enable in
+admin dashboard**.
 
 Not a workspace admin? Send the listing link to an admin of your workspace and
 ask them to enable the app.
