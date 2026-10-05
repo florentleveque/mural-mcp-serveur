@@ -122,6 +122,9 @@ describe('MuralClient', () => {
 
       await expect(promise).resolves.toEqual({ id: 'ws1' });
       expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(console.warn).toHaveBeenCalledWith(
+        'Server error (500). Retrying after 1000ms... (attempt 1/4)',
+      );
     });
 
     it('gives up after maxRetries consecutive 500s', async () => {
@@ -189,7 +192,9 @@ describe('MuralClient', () => {
         }),
       );
 
-      await expect(createClient().getWorkspace('ws1')).rejects.toThrow('API rate limit exceeded');
+      await expect(createClient().getWorkspace('ws1')).rejects.toThrow(
+        'Mural API request failed: HTTP 429: Too Many Requests - API rate limit exceeded. Max retries reached or wait time too long.',
+      );
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
@@ -217,6 +222,9 @@ describe('MuralClient', () => {
 
       await expect(promise).resolves.toEqual({ id: 'ws1' });
       expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(console.warn).toHaveBeenCalledWith(
+        'API rate limit hit (HTTP 429). Retrying after 2000ms... (attempt 1/4)',
+      );
     });
 
     it('waits and retries when the local rate limiter asks for a short wait', async () => {
@@ -231,6 +239,9 @@ describe('MuralClient', () => {
 
       await expect(promise).resolves.toEqual({ id: 'ws1' });
       expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(console.warn).toHaveBeenCalledWith(
+        'Rate limit hit: User rate limit. Waiting 1000ms...',
+      );
     });
 
     it('throws immediately when the local rate limiter wait is too long', async () => {
@@ -251,6 +262,34 @@ describe('MuralClient', () => {
         'Failed to consume rate limit token',
       );
       expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it.each(['authentication failed', 'authorization denied', 'Rate limit exceeded: upstream'])(
+      'rethrows an OAuth error mentioning "%s" without retrying',
+      async (message) => {
+        mocks.getValidAccessToken.mockRejectedValue(new Error(message));
+
+        await expect(createClient().getWorkspace('ws1')).rejects.toThrow(message);
+        expect(mocks.getValidAccessToken).toHaveBeenCalledTimes(1);
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(console.warn).not.toHaveBeenCalled();
+      },
+    );
+
+    it('retries any other failure after an exponential backoff and logs it', async () => {
+      vi.useFakeTimers();
+      fetchMock
+        .mockRejectedValueOnce(new TypeError('fetch failed'))
+        .mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
+
+      const promise = createClient().getWorkspace('ws1');
+      await vi.advanceTimersByTimeAsync(1000); // 2^0 * 1000
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      await expect(promise).resolves.toEqual({ id: 'ws1' });
+      expect(console.warn).toHaveBeenCalledWith(
+        'Request failed: TypeError: fetch failed. Retrying after 1000ms... (attempt 1/4)',
+      );
     });
   });
 
@@ -299,6 +338,20 @@ describe('MuralClient', () => {
         'missing required scope: murals:read',
       );
       expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('stops at the 100-page cap and reports the truncation', async () => {
+      fetchMock.mockImplementation(() =>
+        Promise.resolve(mockFetchResponse(200, { value: [{ id: 'w' }], next: 'more' })),
+      );
+
+      const widgets = await createClient().getMuralWidgets('m1');
+
+      expect(widgets).toHaveLength(100);
+      expect(fetchMock).toHaveBeenCalledTimes(100);
+      expect(console.error).toHaveBeenCalledWith(
+        'fetchAllPages: reached the 100-page cap for /murals/m1/widgets; results may be truncated.',
+      );
     });
   });
 
@@ -357,6 +410,283 @@ describe('MuralClient', () => {
     });
   });
 
+  describe('request sent by each endpoint method', () => {
+    const note = { x: 1, y: 2, text: 'a', shape: 'rectangle' as const };
+
+    it.each<[string, (c: MuralClient) => Promise<unknown>, string, string | undefined, unknown]>([
+      [
+        'createMuralFromTemplate',
+        (c) => c.createMuralFromTemplate('t 1', 'T', 7, 'f1'),
+        '/templates/t%201/murals',
+        'POST',
+        { title: 'T', roomId: 7, folderId: 'f1' },
+      ],
+      [
+        'createRoom',
+        (c) => c.createRoom('ws1', 'R', 'private', 'desc', true),
+        '/rooms',
+        'POST',
+        { name: 'R', type: 'private', workspaceId: 'ws1', description: 'desc', confidential: true },
+      ],
+      [
+        'createMural',
+        (c) => c.createMural(7, { title: 'T' }),
+        '/murals',
+        'POST',
+        { roomId: 7, title: 'T' },
+      ],
+      [
+        'updateMural',
+        (c) => c.updateMural('m1', { title: 'New' }),
+        '/murals/m1',
+        'PATCH',
+        { title: 'New' },
+      ],
+      ['deleteMural', (c) => c.deleteMural('m1'), '/murals/m1', 'DELETE', undefined],
+      [
+        'duplicateMural',
+        (c) => c.duplicateMural('m1', 7, 'Copy', { infinite: true }),
+        '/murals/m1/duplicate',
+        'POST',
+        { roomId: 7, title: 'Copy', infinite: true },
+      ],
+      [
+        'exportMural',
+        (c) => c.exportMural('m1', 'pdf'),
+        '/murals/m1/export',
+        'POST',
+        { downloadFormat: 'pdf' },
+      ],
+      [
+        'getWorkspaceRooms',
+        (c) => c.getWorkspaceRooms('ws1'),
+        '/workspaces/ws1/rooms',
+        undefined,
+        undefined,
+      ],
+      [
+        'getWorkspaceRooms (open only)',
+        (c) => c.getWorkspaceRooms('ws1', true),
+        '/workspaces/ws1/rooms/open',
+        undefined,
+        undefined,
+      ],
+      [
+        'getWorkspaceTemplates',
+        (c) => c.getWorkspaceTemplates('ws1'),
+        '/workspaces/ws1/templates',
+        undefined,
+        undefined,
+      ],
+      [
+        'getWorkspaceTemplates (without default)',
+        (c) => c.getWorkspaceTemplates('ws1', undefined, true),
+        '/workspaces/ws1/templates?withoutDefault=true',
+        undefined,
+        undefined,
+      ],
+      [
+        'getWorkspaceTemplates (search)',
+        (c) => c.getWorkspaceTemplates('ws1', ' retro board '),
+        '/search/ws1/templates?q=retro+board',
+        undefined,
+        undefined,
+      ],
+      [
+        'getWorkspaceMurals',
+        (c) => c.getWorkspaceMurals('ws1'),
+        '/workspaces/ws1/murals',
+        undefined,
+        undefined,
+      ],
+      ['getRoomMurals', (c) => c.getRoomMurals('r1'), '/rooms/r1/murals', undefined, undefined],
+      ['getMural', (c) => c.getMural('m1'), '/murals/m1', undefined, undefined],
+      [
+        'getMuralWidgets',
+        (c) => c.getMuralWidgets('m1'),
+        '/murals/m1/widgets',
+        undefined,
+        undefined,
+      ],
+      [
+        'getMuralWidget',
+        (c) => c.getMuralWidget('m1', 'w1'),
+        '/murals/m1/widgets/w1',
+        undefined,
+        undefined,
+      ],
+      [
+        'createStickyNotes',
+        (c) => c.createStickyNotes('m1', [note]),
+        '/murals/m1/widgets/sticky-note',
+        'POST',
+        [note],
+      ],
+      [
+        'updateStickyNote',
+        (c) => c.updateStickyNote('m1', 'w1', { text: 'b' }),
+        '/murals/m1/widgets/sticky-note/w1',
+        'PATCH',
+        { text: 'b' },
+      ],
+      [
+        'createShapes',
+        (c) => c.createShapes('m1', [{ x: 1 }]),
+        '/murals/m1/widgets/shape',
+        'POST',
+        [{ x: 1 }],
+      ],
+      [
+        'createArrows',
+        (c) => c.createArrows('m1', [{ x: 1 }]),
+        '/murals/m1/widgets/arrow',
+        'POST',
+        [{ x: 1 }],
+      ],
+      [
+        'createTextBoxes',
+        (c) => c.createTextBoxes('m1', [{ x: 1 }]),
+        '/murals/m1/widgets/text-box',
+        'POST',
+        [{ x: 1 }],
+      ],
+      [
+        'createTitles',
+        (c) => c.createTitles('m1', [{ x: 1 }]),
+        '/murals/m1/widgets/title',
+        'POST',
+        [{ x: 1 }],
+      ],
+      [
+        'createAreas',
+        (c) => c.createAreas('m1', [{ x: 1 }]),
+        '/murals/m1/widgets/area',
+        'POST',
+        [{ x: 1 }],
+      ],
+      [
+        'updateShape',
+        (c) => c.updateShape('m1', 'w1', { x: 2 }),
+        '/murals/m1/widgets/shape/w1',
+        'PATCH',
+        { x: 2 },
+      ],
+      [
+        'updateArrow',
+        (c) => c.updateArrow('m1', 'w1', { x: 2 }),
+        '/murals/m1/widgets/arrow/w1',
+        'PATCH',
+        { x: 2 },
+      ],
+      [
+        'updateTextBox',
+        (c) => c.updateTextBox('m1', 'w1', { x: 2 }),
+        '/murals/m1/widgets/text-box/w1',
+        'PATCH',
+        { x: 2 },
+      ],
+      [
+        'updateTitle',
+        (c) => c.updateTitle('m1', 'w1', { x: 2 }),
+        '/murals/m1/widgets/title/w1',
+        'PATCH',
+        { x: 2 },
+      ],
+      [
+        'updateArea',
+        (c) => c.updateArea('m1', 'w1', { x: 2 }),
+        '/murals/m1/widgets/area/w1',
+        'PATCH',
+        { x: 2 },
+      ],
+    ])('%s sends the expected request', async (_name, call, endpoint, method, body) => {
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { value: [] }));
+
+      await call(createClient());
+
+      const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe(`https://app.mural.co/api/public/v1${endpoint}`);
+      expect(options.method).toBe(method);
+      expect(options.body).toBe(body === undefined ? undefined : JSON.stringify(body));
+    });
+  });
+
+  describe('scope check before the request', () => {
+    it.each<[string, (c: MuralClient) => Promise<unknown>, string]>([
+      ['createMuralFromTemplate', (c) => c.createMuralFromTemplate('t1', 'T', 7), 'murals:write'],
+      ['createRoom', (c) => c.createRoom('ws1', 'R', 'open'), 'rooms:write'],
+      ['createMural', (c) => c.createMural(7), 'murals:write'],
+      ['updateMural', (c) => c.updateMural('m1', {}), 'murals:write'],
+      ['deleteMural', (c) => c.deleteMural('m1'), 'murals:write'],
+      ['duplicateMural', (c) => c.duplicateMural('m1', 7, 'Copy'), 'murals:write'],
+      ['exportMural', (c) => c.exportMural('m1', 'pdf'), 'murals:read'],
+      ['getExportStatus', (c) => c.getExportStatus('m1', 'e1'), 'murals:read'],
+      ['getWorkspaceMurals', (c) => c.getWorkspaceMurals('ws1'), 'murals:read'],
+      ['getRoomMurals', (c) => c.getRoomMurals('r1'), 'murals:read'],
+      ['getMural', (c) => c.getMural('m1'), 'murals:read'],
+      ['getMuralWidget', (c) => c.getMuralWidget('m1', 'w1'), 'murals:read'],
+      ['deleteWidget', (c) => c.deleteWidget('m1', 'w1'), 'murals:write'],
+      ['createStickyNotes', (c) => c.createStickyNotes('m1', []), 'murals:write'],
+      ['updateStickyNote', (c) => c.updateStickyNote('m1', 'w1', {}), 'murals:write'],
+      ['createShapes', (c) => c.createShapes('m1', []), 'murals:write'],
+      ['updateShape', (c) => c.updateShape('m1', 'w1', {}), 'murals:write'],
+    ])('%s refuses without its required scope', async (_name, call, scope) => {
+      mocks.getStoredTokens.mockResolvedValue(mockOAuthTokens({ scope: 'workspaces:read' }));
+
+      await expect(call(createClient())).rejects.toThrow(
+        `Permission denied: User missing required scope: ${scope}. Available scopes: workspaces:read. Please ensure your Mural OAuth app has '${scope}' scope and re-authenticate.`,
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('API scope errors mapped to a permission-denied message', () => {
+    const scopeAware: [string, (c: MuralClient) => Promise<unknown>, string][] = [
+      ['getWorkspaceRooms', (c) => c.getWorkspaceRooms('ws1'), 'rooms:read'],
+      ['getWorkspaceTemplates', (c) => c.getWorkspaceTemplates('ws1'), 'templates:read'],
+      ['getMuralWidgets', (c) => c.getMuralWidgets('m1'), 'murals:read'],
+      ['getWorkspaceMurals', (c) => c.getWorkspaceMurals('ws1'), 'murals:read'],
+      ['getRoomMurals', (c) => c.getRoomMurals('r1'), 'murals:read'],
+      ['getMural', (c) => c.getMural('m1'), 'murals:read'],
+    ];
+    const permissionDenied = (scope: string) =>
+      `Permission denied: User has required scope: ${scope}. Please ensure your Mural OAuth app has '${scope}' scope and re-authenticate.`;
+
+    it.each(scopeAware)('%s maps a bare HTTP 403', async (_name, call, scope) => {
+      fetchMock.mockResolvedValue(mockFetchResponse(403, { message: 'Forbidden' }));
+
+      await expect(call(createClient())).rejects.toThrow(permissionDenied(scope));
+    });
+
+    it.each(scopeAware)(
+      '%s maps an INVALID_SCOPE code on another status',
+      async (_name, call, scope) => {
+        fetchMock.mockResolvedValue(mockFetchResponse(400, { code: 'INVALID_SCOPE' }));
+
+        await expect(call(createClient())).rejects.toThrow(permissionDenied(scope));
+      },
+    );
+
+    it.each(scopeAware)('%s rethrows other API errors unchanged', async (_name, call) => {
+      fetchMock.mockResolvedValue(mockFetchResponse(404, { code: 'NOT_FOUND' }));
+
+      const error = await call(createClient()).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(MuralApiError);
+      expect((error as MuralApiError).status).toBe(404);
+    });
+  });
+
+  describe('getUserScopes', () => {
+    it('splits the token scope string and drops blank entries', async () => {
+      mocks.getStoredTokens.mockResolvedValue(
+        mockOAuthTokens({ scope: 'murals:read  rooms:read \t ' }),
+      );
+
+      await expect(createClient().getUserScopes()).resolves.toEqual(['murals:read', 'rooms:read']);
+    });
+  });
+
   describe('export status & download', () => {
     it('getExportStatus unwraps the value envelope and targets the exports endpoint', async () => {
       fetchMock.mockResolvedValue(
@@ -396,6 +726,31 @@ describe('MuralClient', () => {
       );
 
       await expect(createClient().getExportStatus('m1', 'e1')).rejects.toThrow('HTTP 403');
+      expect(console.error).toHaveBeenCalledWith(
+        'Failed to get export status for mural m1 (export e1):',
+        expect.any(MuralApiError),
+      );
+    });
+
+    it.each([
+      ['a 404 with another code', 404, 'MURAL_NOT_FOUND'],
+      ['an EXPORT_NOT_FOUND code on another status', 400, 'EXPORT_NOT_FOUND'],
+    ])('getExportStatus throws on %s', async (_label, status, code) => {
+      fetchMock.mockResolvedValue(mockFetchResponse(status, { code }));
+
+      await expect(createClient().getExportStatus('m1', 'e1')).rejects.toThrow(`HTTP ${status}`);
+    });
+
+    it('getExportStatus only treats a MuralApiError as "still processing"', async () => {
+      // An OAuth failure is a plain Error: even one carrying the same fields
+      // must surface instead of reading as an unfinished export.
+      const foreign = Object.assign(new Error('authentication failed'), {
+        status: 404,
+        errorCode: 'EXPORT_NOT_FOUND',
+      });
+      mocks.getValidAccessToken.mockRejectedValue(foreign);
+
+      await expect(createClient().getExportStatus('m1', 'e1')).rejects.toBe(foreign);
     });
 
     it('downloadExport writes the file to outputPath when the export is ready', async () => {
@@ -417,6 +772,21 @@ describe('MuralClient', () => {
       // The signed URL is fetched raw, without the Bearer header used for Mural API calls.
       const [, downloadOptions] = fetchMock.mock.calls[1] as [string, RequestInit | undefined];
       expect(downloadOptions).toBeUndefined();
+    });
+
+    it('downloadExport throws when the signed URL download fails', async () => {
+      fetchMock
+        .mockResolvedValueOnce(
+          mockFetchResponse(200, { value: { url: 'https://s3.example/export.pdf' } }),
+        )
+        .mockResolvedValueOnce(new Response('', { status: 403, statusText: 'Forbidden' }));
+
+      await expect(
+        createClient().downloadExport('m1', 'e1', '/tmp/out/export.pdf'),
+      ).rejects.toThrow(
+        'Mural API request failed: HTTP 403: Forbidden - Failed to download export file',
+      );
+      expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled();
     });
 
     it('downloadExport does not download or write when the export is not ready yet', async () => {
