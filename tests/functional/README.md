@@ -29,7 +29,7 @@ The leading LLM follows the `functional-testing` skill (`/functional-testing`).
 ## The server under test
 
 The PR's Vercel preview deployment, reached through the `mural-mcp-dev` entry of
-the project `.mcp.json`, signed in with the `mural-preview` skill in the
+the project `.mcp.json` and authenticated through its OAuth flow in the
 executor's session. Each `spec.md` states which tools it calls and what to
 capture; the executor never builds or starts a server.
 

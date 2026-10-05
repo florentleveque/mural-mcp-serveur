@@ -5,10 +5,8 @@ writes: false
 
 # 01: sign-in
 
-Verify that the sign-in to the preview server works, and that the connection
-then reaches Mural with the scopes Mural granted. On a preview, the sign-in goes
-through the `mural-preview` skill: Claude Code's own OAuth requests cannot pass
-Vercel's preview protection.
+Verify that Claude Code signs in to the preview server through its OAuth flow,
+and that the connection then reaches Mural with the scopes Mural granted.
 
 The browser part is done by the human who runs this session: ask them to
 complete it and to tell you what each page showed. Never ask for, or record, a
@@ -16,8 +14,7 @@ password, a token or a cookie.
 
 ## Steps
 
-1. Run the `mural-preview` skill, which signs in through the browser, then have
-   the human reconnect `mural-mcp-dev` with `/mcp`. The human follows the browser
+1. Run `/mcp` and authenticate `mural-mcp-dev`. The human follows the browser
    pages. Ask them, and record:
    - whether the Mural sign-in (or Mural's own approval page) appeared;
    - whether a page of this server asked "Allow <client> to use your Mural
