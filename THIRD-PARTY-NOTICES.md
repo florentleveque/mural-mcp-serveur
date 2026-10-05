@@ -1,6 +1,7 @@
 # Third-party notices
 
-Parts of this repository's tooling are adapted from
+Parts of this repository's tooling and of its OAuth authorization server are
+adapted from
 [fruggr/zendesk-mcp-server](https://github.com/fruggr/zendesk-mcp-server),
 distributed under the MIT License reproduced below. Adapted files carry a header
 pointing here; formats without comments (`renovate.json`) are named in the
