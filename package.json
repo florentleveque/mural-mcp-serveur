@@ -9,6 +9,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
+    "dev:http": "pnpm build && node --env-file-if-exists=.env scripts/dev-http.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
