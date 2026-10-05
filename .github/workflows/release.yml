@@ -1,3 +1,4 @@
+# Adapted from fruggr/zendesk-mcp-server (MIT, see THIRD-PARTY-NOTICES.md).
 name: Release
 
 on:
@@ -8,15 +9,21 @@ concurrency:
   group: release
   cancel-in-progress: false
 
+# Every write goes through the App token minted below; GITHUB_TOKEN only reads
+# the tree. `id-token: write` is what the MCP Registry login exchanges.
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+  contents: read
   id-token: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    # The App's private key lives in this environment, which admits `main`
+    # only: the App bypasses the `main` ruleset, so no other branch may mint
+    # its token.
+    environment: release
+    # Shorter than the App token's one-hour life.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -30,21 +37,73 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
-      # Trusted Publishing (token-free, OIDC only) needs npm >= 11.5.1.
-      # @semantic-release/npm shells out to the npm CLI, so the global npm
-      # version is what matters here.
-      - run: npm install -g npm@^11.5.1
-
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm typecheck
 
       - run: pnpm build
 
-      # npm auth uses Trusted Publishing: @semantic-release/npm exchanges the
-      # job's OIDC token (id-token: write) for a short-lived publish token, so
-      # no NPM_TOKEN secret is needed. Requires a trusted publisher configured
-      # for this repo + release.yml in the package settings on npmjs.com.
+      # @semantic-release/npm bumps package.json even without publishing: a
+      # changed version is the sign that a release was cut.
+      - name: Snapshot the version before release
+        id: before
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # The `main` ruleset refuses a direct push, and this App is on its bypass
+      # list. Minted here, not earlier: the token lives one hour.
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          # The Client ID is public, hence a variable; the private key is the credential.
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          # Pinned, so a later grant to the App cannot widen a release run.
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
+
       - run: pnpm exec semantic-release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Pushes the release commit and creates the GitHub release. An App
+          # token's push starts workflows: `[skip ci]` in the release commit
+          # (tests/unit/releaserc-skip-ci.test.ts) keeps it from starting this one.
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: Detect whether a release was cut
+        id: released
+        env:
+          BEFORE: ${{ steps.before.outputs.version }}
+        run: |
+          after="$(node -p "require('./package.json').version")"
+          if [ "$BEFORE" != "$after" ]; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "version=$after" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            echo "No release this run: the MCP Registry is left alone."
+          fi
+
+      # server.json was synced and committed by semantic-release; the publisher
+      # reads it from the working tree.
+      - name: Install mcp-publisher
+        if: steps.released.outputs.published == 'true'
+        env:
+          # Pinned and checksum-verified: it runs with the job's OIDC permission.
+          MCP_PUBLISHER_VERSION: '1.8.1'
+        run: |
+          asset="mcp-publisher_linux_amd64.tar.gz"
+          base="https://github.com/modelcontextprotocol/registry/releases/download/v${MCP_PUBLISHER_VERSION}"
+          curl -fsSL -o "$asset" "$base/$asset"
+          curl -fsSL -o checksums.txt "$base/registry_${MCP_PUBLISHER_VERSION}_checksums.txt"
+          grep " ${asset}$" checksums.txt | sha256sum -c -
+          tar xzf "$asset" mcp-publisher
+          rm -f "$asset" checksums.txt
+
+      - name: Publish to the MCP Registry
+        if: steps.released.outputs.published == 'true'
+        env:
+          VERSION: ${{ steps.released.outputs.version }}
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
+          echo "Published $VERSION to the MCP Registry."

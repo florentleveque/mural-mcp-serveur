@@ -139,8 +139,10 @@ the assumption that everything below has been done.
 Versions follow [SemVer](https://semver.org/) and are computed automatically
 from commit messages: nobody bumps the version by hand. Every merge to `main`
 runs [semantic-release](https://github.com/semantic-release/semantic-release),
-which computes the next version, updates [`CHANGELOG.md`](CHANGELOG.md),
-publishes the npm package and creates the GitHub Release.
+which computes the next version, updates [`CHANGELOG.md`](CHANGELOG.md) and
+`server.json`, creates the GitHub Release and publishes the new version to the
+MCP Registry. Vercel deploys `main` to production on its own. How it works and
+the one-time setup: [`docs/release-automation.md`](docs/release-automation.md).
 
 | Commit type | Resulting bump |
 | --- | --- |
