@@ -106,6 +106,37 @@ mutated sources and test files only, so a dependency, config or Node change
 would replay verdicts instead of re-running them. CI enables it only with a
 cache key that hashes those other inputs.
 
+## CI
+
+`.github/workflows/mutation.yml` has two jobs, both set up by the composite
+action `.github/actions/mutation-baseline`:
+
+- **`Changed lines`** (every pull request): canary, then
+  `pnpm test:mutation:diff <base sha> HEAD --incremental`. `HEAD` is the merge
+  commit checkout produces, so the line numbers match the tree Stryker mutates.
+- **`Full scope`** (every push to `main`): canary, then the whole scope with
+  `--incremental`, and the only job that saves the baseline to the cache.
+
+The baseline can go stale silently: incremental mode diffs `src/**` and the
+`*.test.ts` files it discovers, nothing else. So the cache key prefix hashes
+every other input that can change a verdict: `pnpm-lock.yaml` (which also
+records the patch hash), `package.json`, `stryker.config.mjs`,
+`vitest.config.ts`, `.nvmrc`, and every non-`*.test.ts` file under `tests/`
+except `tests/functional/`. Change one and no cache entry matches, so Stryker
+runs cold. That last part is asserted by `tests/unit/mutation-scope.test.ts`:
+adding a shared fixture under `tests/` without hashing it fails the suite.
+
+Two details keep that sound:
+
+- The key ends in the commit sha, and the restore-key is the prefix. Cache
+  entries are immutable, so a fixed key would freeze the first baseline; the
+  prefix fallback is safe only because the inputs hash sits inside it.
+- Only `Full scope` saves, and only on success. A PR run is diff-scoped, so
+  saving it would publish a truncated baseline.
+
+The triggers are unfiltered on purpose: a path-filtered required check never
+reports, and a `paths:` list would be a second copy of the cache key's rule.
+
 ## Dashboard
 
 The `dashboard` reporter only runs when `STRYKER_DASHBOARD_API_KEY` is set. No

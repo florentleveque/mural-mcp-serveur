@@ -1,0 +1,126 @@
+# Adapted from fruggr/zendesk-mcp-server (MIT, see THIRD-PARTY-NOTICES.md).
+name: Mutation testing
+
+# `diff-gate` mutates a PR's changed *lines*; `baseline` runs the full scope on
+# main and is the only writer of the incremental cache the gate restores.
+# Design and the reasoning behind every choice below:
+# docs/decisions/mutation-testing.md
+
+on:
+  # Both unfiltered on purpose: a path-filtered *required* check never reports,
+  # and a `paths:` list here would be a second copy of the cache key's rule.
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diff-gate:
+    name: Changed lines
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    # Normally well under a minute; slack for a lot of logic at once, or a cold
+    # cache (the whole scope runs in about 1 min 30 s locally).
+    timeout-minutes: 15
+    concurrency:
+      group: mutation-gate-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # the gate diffs the PR base against this merge commit
+          persist-credentials: false # neither job pushes
+
+      - uses: ./.github/actions/mutation-baseline
+
+      # Before the gate, and unconditionally. A dependency-only PR changes no
+      # mutated line, so the gate below finds nothing to judge and reports a
+      # vacuous pass. The canary mutates a two-line fixture whose verdicts are
+      # fixed by construction, so it is the one signal such a PR gets. ~3 s.
+      # `shell: bash` for `-eo pipefail`, same reason as the gate step below.
+      - name: Canary, is the mutation gate still measuring anything?
+        shell: bash
+        run: pnpm test:mutation:canary | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Two things here are load-bearing and look removable. `shell: bash` gives
+      # `-eo pipefail`; the default `bash -e` has none, so `tee` would swallow the
+      # gate's exit 1 and every failure would report green. `HEAD`, not
+      # `head.sha`: checkout gives us the merge commit, and the line numbers must
+      # match the tree Stryker mutates.
+      - name: Gate the changed lines
+        shell: bash
+        run: |
+          pnpm test:mutation:diff \
+            '${{ github.event.pull_request.base.sha }}' \
+            HEAD \
+            --incremental | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the mutation report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutation-report-pr
+          # The baseline is excluded: a copy of the restored cache entry.
+          path: |
+            reports/mutation/
+            !reports/mutation/stryker-incremental.json
+          retention-days: 7
+          if-no-files-found: warn
+
+  baseline:
+    name: Full scope
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # A cold run of the current scope is about 1 min 30 s locally. The budget
+    # detects a hang; re-measure and raise it before widening `mutate`.
+    timeout-minutes: 20
+    concurrency:
+      group: mutation-baseline
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/mutation-baseline
+        id: cache
+
+      # Same canary as the PR job. On `main` it is what keeps a merged bump from
+      # leaving a whole baseline of replayed, meaningless verdicts behind.
+      - name: Canary, is the mutation gate still measuring anything?
+        shell: bash
+        run: pnpm test:mutation:canary | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Reports, never `break`s. No `--`: pnpm forwards the separator itself.
+      # Step-scoped secret, so only the baseline can publish (not configured
+      # today: the reporter stays off without it).
+      - name: Run the full scope
+        env:
+          STRYKER_DASHBOARD_API_KEY: ${{ secrets.STRYKER_DASHBOARD_API_KEY }}
+        run: pnpm test:mutation --incremental
+
+      - name: Score summary
+        if: always()
+        run: pnpm test:mutation:summary >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save the refreshed baseline
+        # The only writer; skipped on failure so no partial baseline is published.
+        if: success()
+        uses: actions/cache/save@v6
+        with:
+          path: reports/mutation/stryker-incremental.json
+          key: ${{ steps.cache.outputs.exact }}
+
+      - name: Upload the mutation report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutation-report-baseline
+          path: |
+            reports/mutation/
+            !reports/mutation/stryker-incremental.json
+          retention-days: 30
+          if-no-files-found: warn

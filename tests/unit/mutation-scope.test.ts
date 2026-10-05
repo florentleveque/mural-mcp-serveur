@@ -1,4 +1,7 @@
 // Adapted from fruggr/zendesk-mcp-server (MIT, see THIRD-PARTY-NOTICES.md).
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error -- plain .mjs helper, no declaration file (same as the other
 // script tests in this directory).
@@ -210,6 +213,47 @@ describe('scopeMatcher', () => {
 
   it('includes nothing when given no patterns', () => {
     expect(scopeMatcher([])('src/utils/logger.ts')).toBe(false);
+  });
+});
+
+describe('the mutation baseline cache key', () => {
+  // Maintained by hand, and its failure is silent: Stryker's incremental mode
+  // diffs the test files it *discovers*, so shared scaffolding under `tests/` is
+  // invisible to it, and a file missing from the hash has later PRs replay
+  // verdicts against fixtures that no longer exist. Hence a test, not a document.
+  const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
+
+  // `tests/functional/` is exempt by path: `vitest.config.ts` loads only
+  // `tests/unit/**/*.test.ts`, so nothing in that harness can change a verdict.
+  // It also records a report per scenario run, and hashing those would discard
+  // the baseline every time someone records one.
+  const EXEMPT = new Set(['tests/functional']);
+
+  // Every remaining file, whatever its extension, not just `.ts`. Filtering by
+  // extension would miss the case this exists to catch: a JSON fixture or an
+  // `.mjs` helper that a suite reads at runtime.
+  const suiteInputsUnder = (dir: string): string[] =>
+    readdirSync(join(repoRoot, dir), { withFileTypes: true }).flatMap((entry) => {
+      const rel = `${dir}/${entry.name}`;
+      if (EXEMPT.has(rel)) return [];
+      if (entry.isDirectory()) return suiteInputsUnder(rel);
+      return entry.name.endsWith('.test.ts') ? [] : [rel];
+    });
+
+  it('hashes every file under tests/ that the suite can load', () => {
+    const action = readFileSync(
+      join(repoRoot, '.github/actions/mutation-baseline/action.yml'),
+      'utf8',
+    );
+    const call = /hashFiles\(([^)]*)\)/.exec(action);
+    expect(call?.[1], 'the action must compute the prefix with hashFiles(...)').toBeDefined();
+    const hashed = [...(call?.[1] ?? '').matchAll(/'([^']+)'/g)].map((m) => m[1]);
+
+    // Sorted comparison, so the failure message names the missing file.
+    const alphabetically = (a: string, b: string) => a.localeCompare(b);
+    expect(hashed.filter((f) => f.startsWith('tests/')).sort(alphabetically)).toEqual(
+      suiteInputsUnder('tests').sort(alphabetically),
+    );
   });
 });
 
