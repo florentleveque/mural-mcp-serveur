@@ -2,7 +2,7 @@
 
 import 'dotenv/config';
 
-import { type ListToolsResult, Server } from '@modelcontextprotocol/server';
+import { type ListToolsResult, Server, type Tool } from '@modelcontextprotocol/server';
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import { z } from 'zod';
 
@@ -20,8 +20,27 @@ import {
   toCompactWidget,
   toCompactWorkspace,
 } from './projections.js';
+import type { ToolContext, ToolDefinition } from './tools/definitions.js';
+import { toolDefinitions } from './tools/registry.js';
 
 const REQUIRED_ENV_VARS = ['MURAL_CLIENT_ID', 'MURAL_CLIENT_SECRET'] as const;
+
+const definitions = new Map(toolDefinitions.map((tool) => [tool.name, tool]));
+
+// Lists a definition the way McpServer.registerTool will, so the exposed
+// surface does not move again when the legacy dispatcher goes.
+function toListedTool(tool: ToolDefinition): Tool {
+  return {
+    name: tool.name,
+    title: tool.title,
+    description: tool.description,
+    inputSchema: {
+      type: 'object',
+      ...tool.inputSchema['~standard'].jsonSchema.input({ target: 'draft-2020-12' }),
+    },
+    annotations: tool.annotations,
+  };
+}
 
 // Shared Zod field for the `verbose` escape hatch exposed by every read tool.
 const verboseFlag = z.boolean().optional().default(false);
@@ -56,6 +75,10 @@ async function main() {
 
   const oauth = new MuralOAuth(clientId, clientSecret, redirectUri);
   const muralClient = new MuralClient(oauth);
+  const context: ToolContext = {
+    client: muralClient,
+    clearAuthentication: () => oauth.clearTokens(),
+  };
 
   const server = new Server(
     {
@@ -73,6 +96,7 @@ async function main() {
   server.setRequestHandler('tools/list', async (): Promise<ListToolsResult> => {
     return {
       tools: [
+        ...toolDefinitions.map(toListedTool),
         {
           name: 'list-workspaces',
           description:
@@ -909,6 +933,11 @@ async function main() {
     const { name, arguments: args } = request.params;
 
     try {
+      const tool = definitions.get(name);
+      if (tool) {
+        return await tool.handler(tool.inputSchema.parse(args ?? {}), context);
+      }
+
       switch (name) {
         case 'list-workspaces': {
           const schema = z.object({
