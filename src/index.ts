@@ -29,7 +29,10 @@ const verboseFlag = z.boolean().optional().default(false);
 function validateEnvironment(): { clientId: string; clientSecret: string; redirectUri?: string } {
   const clientId = process.env.MURAL_CLIENT_ID;
   if (!clientId) {
-    throw new Error('Missing required environment variable: MURAL_CLIENT_ID. ' + 'Please set this in your environment or .env file.');
+    throw new Error(
+      'Missing required environment variable: MURAL_CLIENT_ID. ' +
+        'Please set this in your environment or .env file.',
+    );
   }
 
   const clientSecret = process.env.MURAL_CLIENT_SECRET;
@@ -89,7 +92,8 @@ async function main() {
               },
               verbose: {
                 type: 'boolean',
-                description: 'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
+                description:
+                  'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
               },
             },
             additionalProperties: false,
@@ -108,7 +112,8 @@ async function main() {
               },
               verbose: {
                 type: 'boolean',
-                description: 'If true, return the full raw object instead of the compact view (optional, defaults to false)',
+                description:
+                  'If true, return the full raw object instead of the compact view (optional, defaults to false)',
               },
             },
             required: ['workspaceId'],
@@ -135,7 +140,8 @@ async function main() {
         },
         {
           name: 'debug-api-response',
-          description: 'Debug tool: Show raw API response from workspaces endpoint for troubleshooting',
+          description:
+            'Debug tool: Show raw API response from workspaces endpoint for troubleshooting',
           inputSchema: {
             type: 'object',
             properties: {},
@@ -144,7 +150,8 @@ async function main() {
         },
         {
           name: 'get-rate-limit-status',
-          description: 'Get current rate limiting status including remaining tokens and refresh times',
+          description:
+            'Get current rate limiting status including remaining tokens and refresh times',
           inputSchema: {
             type: 'object',
             properties: {},
@@ -164,7 +171,8 @@ async function main() {
               },
               verbose: {
                 type: 'boolean',
-                description: 'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
+                description:
+                  'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
               },
             },
             required: ['workspaceId'],
@@ -184,7 +192,8 @@ async function main() {
               },
               verbose: {
                 type: 'boolean',
-                description: 'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
+                description:
+                  'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
               },
             },
             required: ['roomId'],
@@ -204,11 +213,13 @@ async function main() {
               },
               openOnly: {
                 type: 'boolean',
-                description: 'If true, list only open (discoverable) rooms instead of all rooms (optional, defaults to false)',
+                description:
+                  'If true, list only open (discoverable) rooms instead of all rooms (optional, defaults to false)',
               },
               verbose: {
                 type: 'boolean',
-                description: 'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
+                description:
+                  'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
               },
             },
             required: ['workspaceId'],
@@ -228,15 +239,18 @@ async function main() {
               },
               searchQuery: {
                 type: 'string',
-                description: 'Optional. If provided, search templates by name instead of listing all',
+                description:
+                  'Optional. If provided, search templates by name instead of listing all',
               },
               withoutDefault: {
                 type: 'boolean',
-                description: 'If true, exclude Mural default templates and return only custom ones (optional, ignored when searchQuery is set)',
+                description:
+                  'If true, exclude Mural default templates and return only custom ones (optional, ignored when searchQuery is set)',
               },
               verbose: {
                 type: 'boolean',
-                description: 'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
+                description:
+                  'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
               },
             },
             required: ['workspaceId'],
@@ -287,7 +301,8 @@ async function main() {
               type: {
                 type: 'string',
                 enum: ['open', 'private'],
-                description: 'Room visibility: "open" (discoverable by workspace members) or "private"',
+                description:
+                  'Room visibility: "open" (discoverable by workspace members) or "private"',
               },
               description: {
                 type: 'string',
@@ -308,13 +323,25 @@ async function main() {
           inputSchema: {
             type: 'object',
             properties: {
-              roomId: { type: 'number', description: 'The numeric identifier of the destination room' },
+              roomId: {
+                type: 'number',
+                description: 'The numeric identifier of the destination room',
+              },
               title: { type: 'string', description: 'Optional title of the new mural' },
-              backgroundColor: { type: 'string', description: 'Optional background color (hex, e.g. #FFFFFFFF)' },
+              backgroundColor: {
+                type: 'string',
+                description: 'Optional background color (hex, e.g. #FFFFFFFF)',
+              },
               width: { type: 'number', description: 'Optional canvas width in pixels' },
               height: { type: 'number', description: 'Optional canvas height in pixels' },
-              infinite: { type: 'boolean', description: 'Optional. Whether the canvas is infinite' },
-              folderId: { type: 'string', description: 'Optional destination folder id within the room' },
+              infinite: {
+                type: 'boolean',
+                description: 'Optional. Whether the canvas is infinite',
+              },
+              folderId: {
+                type: 'string',
+                description: 'Optional destination folder id within the room',
+              },
             },
             required: ['roomId'],
             additionalProperties: false,
@@ -327,14 +354,18 @@ async function main() {
           inputSchema: {
             type: 'object',
             properties: {
-              muralId: { type: 'string', description: 'The unique identifier of the mural to update' },
+              muralId: {
+                type: 'string',
+                description: 'The unique identifier of the mural to update',
+              },
               title: { type: 'string' },
               backgroundColor: { type: 'string', description: 'Hex background color' },
               favorite: { type: 'boolean' },
               status: {
                 type: 'string',
                 enum: ['active', 'archived'],
-                description: 'Set to "archived" to archive the mural (non-destructive alternative to delete)',
+                description:
+                  'Set to "archived" to archive the mural (non-destructive alternative to delete)',
               },
               width: { type: 'number', description: 'Canvas width (3000-60000)' },
               height: { type: 'number', description: 'Canvas height (3000-60000)' },
@@ -354,7 +385,10 @@ async function main() {
           inputSchema: {
             type: 'object',
             properties: {
-              muralId: { type: 'string', description: 'The unique identifier of the mural to delete' },
+              muralId: {
+                type: 'string',
+                description: 'The unique identifier of the mural to delete',
+              },
             },
             required: ['muralId'],
             additionalProperties: false,
@@ -366,11 +400,20 @@ async function main() {
           inputSchema: {
             type: 'object',
             properties: {
-              muralId: { type: 'string', description: 'The unique identifier of the mural to duplicate' },
-              roomId: { type: 'number', description: 'The numeric identifier of the destination room' },
+              muralId: {
+                type: 'string',
+                description: 'The unique identifier of the mural to duplicate',
+              },
+              roomId: {
+                type: 'number',
+                description: 'The numeric identifier of the destination room',
+              },
               title: { type: 'string', description: 'Title of the duplicated mural' },
               folderId: { type: 'string', description: 'Optional destination folder id' },
-              infinite: { type: 'boolean', description: 'Optional. Whether the canvas is infinite' },
+              infinite: {
+                type: 'boolean',
+                description: 'Optional. Whether the canvas is infinite',
+              },
             },
             required: ['muralId', 'roomId', 'title'],
             additionalProperties: false,
@@ -383,8 +426,15 @@ async function main() {
           inputSchema: {
             type: 'object',
             properties: {
-              muralId: { type: 'string', description: 'The unique identifier of the mural to export' },
-              downloadFormat: { type: 'string', description: 'The export format (e.g. pdf, png, zip — values defined by the Mural API)' },
+              muralId: {
+                type: 'string',
+                description: 'The unique identifier of the mural to export',
+              },
+              downloadFormat: {
+                type: 'string',
+                description:
+                  'The export format (e.g. pdf, png, zip — values defined by the Mural API)',
+              },
             },
             required: ['muralId', 'downloadFormat'],
             additionalProperties: false,
@@ -397,9 +447,19 @@ async function main() {
           inputSchema: {
             type: 'object',
             properties: {
-              muralId: { type: 'string', description: 'The unique identifier of the mural being exported' },
-              exportId: { type: 'string', description: 'The export job identifier returned by export-mural' },
-              outputPath: { type: 'string', description: 'Absolute path of the local file to write the export to (parent directory is created if missing)' },
+              muralId: {
+                type: 'string',
+                description: 'The unique identifier of the mural being exported',
+              },
+              exportId: {
+                type: 'string',
+                description: 'The export job identifier returned by export-mural',
+              },
+              outputPath: {
+                type: 'string',
+                description:
+                  'Absolute path of the local file to write the export to (parent directory is created if missing)',
+              },
             },
             required: ['muralId', 'exportId', 'outputPath'],
             additionalProperties: false,
@@ -418,7 +478,8 @@ async function main() {
               },
               verbose: {
                 type: 'boolean',
-                description: 'If true, return the full raw object instead of the compact view (optional, defaults to false)',
+                description:
+                  'If true, return the full raw object instead of the compact view (optional, defaults to false)',
               },
             },
             required: ['boardId'],
@@ -448,7 +509,8 @@ async function main() {
               },
               verbose: {
                 type: 'boolean',
-                description: 'If true, return the full raw widget objects instead of the compact view (optional, defaults to false)',
+                description:
+                  'If true, return the full raw widget objects instead of the compact view (optional, defaults to false)',
               },
             },
             required: ['muralId'],
@@ -472,7 +534,8 @@ async function main() {
               },
               verbose: {
                 type: 'boolean',
-                description: 'If true, return the full raw widget object instead of the compact view (optional, defaults to false)',
+                description:
+                  'If true, return the full raw widget object instead of the compact view (optional, defaults to false)',
               },
             },
             required: ['muralId', 'widgetId'],
@@ -545,7 +608,8 @@ async function main() {
         // Shape widget
         {
           name: 'create-shapes',
-          description: 'Create shape widgets (rectangle, circle, triangle, diamond) on a mural. Each shape supports fill, border, and optional text.',
+          description:
+            'Create shape widgets (rectangle, circle, triangle, diamond) on a mural. Each shape supports fill, border, and optional text.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -560,8 +624,15 @@ async function main() {
                     y: { type: 'number' },
                     width: { type: 'number' },
                     height: { type: 'number' },
-                    shape: { type: 'string', enum: ['rectangle', 'circle', 'triangle', 'diamond'], description: 'Shape geometry' },
-                    text: { type: 'string', description: 'Optional text content rendered inside the shape' },
+                    shape: {
+                      type: 'string',
+                      enum: ['rectangle', 'circle', 'triangle', 'diamond'],
+                      description: 'Shape geometry',
+                    },
+                    text: {
+                      type: 'string',
+                      description: 'Optional text content rendered inside the shape',
+                    },
                     rotation: { type: 'number' },
                     style: {
                       type: 'object',
@@ -623,8 +694,14 @@ async function main() {
                     },
                     arrowType: { type: 'string', enum: ['straight', 'curved', 'orthogonal'] },
                     tip: { type: 'string', enum: ['no tip', 'single', 'double'] },
-                    startRefId: { type: 'string', description: 'Widget ID that the arrow starts at (anchors to widget)' },
-                    endRefId: { type: 'string', description: 'Widget ID that the arrow ends at (anchors to widget)' },
+                    startRefId: {
+                      type: 'string',
+                      description: 'Widget ID that the arrow starts at (anchors to widget)',
+                    },
+                    endRefId: {
+                      type: 'string',
+                      description: 'Widget ID that the arrow ends at (anchors to widget)',
+                    },
                     label: { type: 'object', description: 'Optional label attached to the arrow' },
                     style: {
                       type: 'object',
@@ -650,7 +727,8 @@ async function main() {
         // Text box widget
         {
           name: 'create-text-boxes',
-          description: 'Create text box widgets on a mural. Unlike sticky notes, text boxes support full font color, font size, and alignment.',
+          description:
+            'Create text box widgets on a mural. Unlike sticky notes, text boxes support full font color, font size, and alignment.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -777,12 +855,16 @@ async function main() {
         // Generic update tool — works for any widget kind
         {
           name: 'update-widget',
-          description: 'Update any widget by kind and ID (sticky-note, shape, arrow, text-box, title, area). Accepts arbitrary field updates.',
+          description:
+            'Update any widget by kind and ID (sticky-note, shape, arrow, text-box, title, area). Accepts arbitrary field updates.',
           inputSchema: {
             type: 'object',
             properties: {
               muralId: { type: 'string' },
-              kind: { type: 'string', enum: ['sticky-note', 'shape', 'arrow', 'text-box', 'title', 'area'] },
+              kind: {
+                type: 'string',
+                enum: ['sticky-note', 'shape', 'arrow', 'text-box', 'title', 'area'],
+              },
               widgetId: { type: 'string' },
               updates: { type: 'object', additionalProperties: true },
             },
@@ -837,7 +919,7 @@ async function main() {
   });
 
   // Handle tool calls
-  server.setRequestHandler(CallToolRequestSchema, async request => {
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
     try {
@@ -852,7 +934,10 @@ async function main() {
           const { limit, offset, verbose } = schema.parse(args || {});
           const workspaces = await muralClient.getWorkspaces(limit, offset);
 
-          return jsonResult({ workspaces: verbose ? workspaces : projectWorkspaces(workspaces), count: workspaces.length });
+          return jsonResult({
+            workspaces: verbose ? workspaces : projectWorkspaces(workspaces),
+            count: workspaces.length,
+          });
         }
 
         case 'get-workspace': {
@@ -872,20 +957,28 @@ async function main() {
 
           return jsonResult({
             connected: isConnected,
-            message: isConnected ? 'Successfully connected to Mural API' : 'Failed to connect to Mural API',
+            message: isConnected
+              ? 'Successfully connected to Mural API'
+              : 'Failed to connect to Mural API',
           });
         }
 
         case 'clear-auth': {
           await muralClient.clearAuthentication();
 
-          return jsonResult({ message: 'Authentication tokens cleared. You will need to re-authenticate on the next API call.' });
+          return jsonResult({
+            message:
+              'Authentication tokens cleared. You will need to re-authenticate on the next API call.',
+          });
         }
 
         case 'debug-api-response': {
           const debugInfo = await muralClient.debugWorkspacesAPI();
 
-          return jsonResult({ debug: debugInfo, message: 'Raw API response data for troubleshooting' });
+          return jsonResult({
+            debug: debugInfo,
+            message: 'Raw API response data for troubleshooting',
+          });
         }
 
         case 'get-rate-limit-status': {
@@ -909,7 +1002,11 @@ async function main() {
           const { workspaceId, verbose } = schema.parse(args);
           const boards = await muralClient.getWorkspaceMurals(workspaceId);
 
-          return jsonResult({ boards: verbose ? boards : projectBoards(boards), count: boards.length, workspaceId });
+          return jsonResult({
+            boards: verbose ? boards : projectBoards(boards),
+            count: boards.length,
+            workspaceId,
+          });
         }
 
         case 'list-room-boards': {
@@ -921,7 +1018,11 @@ async function main() {
           const { roomId, verbose } = schema.parse(args);
           const boards = await muralClient.getRoomMurals(roomId);
 
-          return jsonResult({ boards: verbose ? boards : projectBoards(boards), count: boards.length, roomId });
+          return jsonResult({
+            boards: verbose ? boards : projectBoards(boards),
+            count: boards.length,
+            roomId,
+          });
         }
 
         case 'list-workspace-rooms': {
@@ -934,7 +1035,12 @@ async function main() {
           const { workspaceId, openOnly, verbose } = schema.parse(args);
           const rooms = await muralClient.getWorkspaceRooms(workspaceId, openOnly);
 
-          return jsonResult({ rooms: verbose ? rooms : projectRooms(rooms), count: rooms.length, workspaceId, openOnly });
+          return jsonResult({
+            rooms: verbose ? rooms : projectRooms(rooms),
+            count: rooms.length,
+            workspaceId,
+            openOnly,
+          });
         }
 
         case 'list-workspace-templates': {
@@ -946,7 +1052,11 @@ async function main() {
           });
 
           const { workspaceId, searchQuery, withoutDefault, verbose } = schema.parse(args);
-          const templates = await muralClient.getWorkspaceTemplates(workspaceId, searchQuery, withoutDefault);
+          const templates = await muralClient.getWorkspaceTemplates(
+            workspaceId,
+            searchQuery,
+            withoutDefault,
+          );
 
           return jsonResult({
             templates: verbose ? templates : projectTemplates(templates),
@@ -965,9 +1075,17 @@ async function main() {
           });
 
           const { templateId, title, roomId, folderId } = schema.parse(args);
-          const mural = await muralClient.createMuralFromTemplate(templateId, title, roomId, folderId);
+          const mural = await muralClient.createMuralFromTemplate(
+            templateId,
+            title,
+            roomId,
+            folderId,
+          );
 
-          return jsonResult({ mural: toCompactBoard(mural), message: `Created mural "${title}" from template ${templateId} in room ${roomId}` });
+          return jsonResult({
+            mural: toCompactBoard(mural),
+            message: `Created mural "${title}" from template ${templateId} in room ${roomId}`,
+          });
         }
 
         case 'create-room': {
@@ -980,9 +1098,18 @@ async function main() {
           });
 
           const { workspaceId, name, type, description, confidential } = schema.parse(args);
-          const room = await muralClient.createRoom(workspaceId, name, type, description, confidential);
+          const room = await muralClient.createRoom(
+            workspaceId,
+            name,
+            type,
+            description,
+            confidential,
+          );
 
-          return jsonResult({ room: toCompactRoom(room), message: `Created ${type} room "${name}" in workspace ${workspaceId}` });
+          return jsonResult({
+            room: toCompactRoom(room),
+            message: `Created ${type} room "${name}" in workspace ${workspaceId}`,
+          });
         }
 
         case 'create-mural': {
@@ -997,7 +1124,10 @@ async function main() {
           });
           const { roomId, ...options } = schema.parse(args);
           const mural = await muralClient.createMural(roomId, options);
-          return jsonResult({ mural: toCompactBoard(mural), message: `Created mural in room ${roomId}` });
+          return jsonResult({
+            mural: toCompactBoard(mural),
+            message: `Created mural in room ${roomId}`,
+          });
         }
 
         case 'update-mural': {
@@ -1041,7 +1171,10 @@ async function main() {
           });
           const { muralId, roomId, title, ...options } = schema.parse(args);
           const mural = await muralClient.duplicateMural(muralId, roomId, title, options);
-          return jsonResult({ mural: toCompactBoard(mural), message: `Duplicated mural ${muralId} into room ${roomId}` });
+          return jsonResult({
+            mural: toCompactBoard(mural),
+            message: `Duplicated mural ${muralId} into room ${roomId}`,
+          });
         }
 
         case 'export-mural': {
@@ -1069,7 +1202,9 @@ async function main() {
             ...result,
             muralId,
             exportId,
-            message: result.ready ? `Saved export to ${result.path}` : `Export ${exportId} not ready yet — retry later`,
+            message: result.ready
+              ? `Saved export to ${result.path}`
+              : `Export ${exportId} not ready yet — retry later`,
           });
         }
 
@@ -1104,10 +1239,17 @@ async function main() {
             'templates:write',
             'identity:read',
           ];
-          const missing = expectedScopes.filter(scope => !scopes.includes(scope));
+          const missing = expectedScopes.filter((scope) => !scopes.includes(scope));
 
           return jsonResult({
-            user: user ? { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email } : null,
+            user: user
+              ? {
+                  id: user.id,
+                  firstName: user.firstName,
+                  lastName: user.lastName,
+                  email: user.email,
+                }
+              : null,
             scopes,
             missing,
           });
@@ -1123,7 +1265,11 @@ async function main() {
           const { muralId, verbose } = schema.parse(args);
           const widgets = await muralClient.getMuralWidgets(muralId);
 
-          return jsonResult({ widgets: verbose ? widgets : projectWidgets(widgets), count: widgets.length, muralId });
+          return jsonResult({
+            widgets: verbose ? widgets : projectWidgets(widgets),
+            count: widgets.length,
+            muralId,
+          });
         }
 
         case 'get-mural-widget': {
@@ -1136,7 +1282,11 @@ async function main() {
           const { muralId, widgetId, verbose } = schema.parse(args);
           const widget = await muralClient.getMuralWidget(muralId, widgetId);
 
-          return jsonResult({ widget: verbose ? widget : toCompactWidget(widget), muralId, widgetId });
+          return jsonResult({
+            widget: verbose ? widget : toCompactWidget(widget),
+            muralId,
+            widgetId,
+          });
         }
 
         // Widget creation tools
@@ -1191,14 +1341,17 @@ async function main() {
               }
             }
 
-            const calculatedWidth = Math.min(Math.max(currentLineWidth + padding, minWidth), maxWidth);
+            const calculatedWidth = Math.min(
+              Math.max(currentLineWidth + padding, minWidth),
+              maxWidth,
+            );
             const calculatedHeight = Math.max(lines * lineHeight + padding, 60); // Minimum height of 60
 
             return { width: calculatedWidth, height: calculatedHeight };
           }
 
           // Add required shape field and calculate dimensions for each sticky note
-          const stickyNotesWithShape = stickyNotes.map(note => {
+          const stickyNotesWithShape = stickyNotes.map((note) => {
             const fontSize = note.style?.fontSize || 14;
             const dimensions = calculateTextDimensions(note.text, fontSize);
 
@@ -1260,7 +1413,12 @@ async function main() {
           });
           const { muralId, widgetId } = schema.parse(args);
           await muralClient.deleteWidget(muralId, widgetId);
-          return jsonResult({ muralId, widgetId, deleted: true, message: `Successfully deleted widget ${widgetId} from mural ${muralId}` });
+          return jsonResult({
+            muralId,
+            widgetId,
+            deleted: true,
+            message: `Successfully deleted widget ${widgetId} from mural ${muralId}`,
+          });
         }
 
         case 'create-shapes': {
@@ -1272,7 +1430,9 @@ async function main() {
           const createdWidgets = await muralClient.createShapes(muralId, shapes);
           const count = Array.isArray(createdWidgets) ? createdWidgets.length : 0;
           return jsonResult({
-            widgets: Array.isArray(createdWidgets) ? projectWidgets(createdWidgets) : createdWidgets,
+            widgets: Array.isArray(createdWidgets)
+              ? projectWidgets(createdWidgets)
+              : createdWidgets,
             count,
             muralId,
             message: `Created ${count} shape widget(s)`,
@@ -1288,7 +1448,9 @@ async function main() {
           const createdWidgets = await muralClient.createArrows(muralId, arrows);
           const count = Array.isArray(createdWidgets) ? createdWidgets.length : 0;
           return jsonResult({
-            widgets: Array.isArray(createdWidgets) ? projectWidgets(createdWidgets) : createdWidgets,
+            widgets: Array.isArray(createdWidgets)
+              ? projectWidgets(createdWidgets)
+              : createdWidgets,
             count,
             muralId,
             message: `Created ${count} arrow widget(s)`,
@@ -1304,7 +1466,9 @@ async function main() {
           const createdWidgets = await muralClient.createTextBoxes(muralId, textBoxes);
           const count = Array.isArray(createdWidgets) ? createdWidgets.length : 0;
           return jsonResult({
-            widgets: Array.isArray(createdWidgets) ? projectWidgets(createdWidgets) : createdWidgets,
+            widgets: Array.isArray(createdWidgets)
+              ? projectWidgets(createdWidgets)
+              : createdWidgets,
             count,
             muralId,
             message: `Created ${count} text-box widget(s)`,
@@ -1320,7 +1484,9 @@ async function main() {
           const createdWidgets = await muralClient.createTitles(muralId, titles);
           const count = Array.isArray(createdWidgets) ? createdWidgets.length : 0;
           return jsonResult({
-            widgets: Array.isArray(createdWidgets) ? projectWidgets(createdWidgets) : createdWidgets,
+            widgets: Array.isArray(createdWidgets)
+              ? projectWidgets(createdWidgets)
+              : createdWidgets,
             count,
             muralId,
             message: `Created ${count} title widget(s)`,
@@ -1336,7 +1502,9 @@ async function main() {
           const createdWidgets = await muralClient.createAreas(muralId, areas);
           const count = Array.isArray(createdWidgets) ? createdWidgets.length : 0;
           return jsonResult({
-            widgets: Array.isArray(createdWidgets) ? projectWidgets(createdWidgets) : createdWidgets,
+            widgets: Array.isArray(createdWidgets)
+              ? projectWidgets(createdWidgets)
+              : createdWidgets,
             count,
             muralId,
             message: `Created ${count} area widget(s)`,
@@ -1372,7 +1540,13 @@ async function main() {
               updated = await muralClient.updateArea(muralId, widgetId, updates);
               break;
           }
-          return jsonResult({ widget: toCompactWidget(updated), muralId, widgetId, kind, message: `Updated ${kind} ${widgetId}` });
+          return jsonResult({
+            widget: toCompactWidget(updated),
+            muralId,
+            widgetId,
+            kind,
+            message: `Updated ${kind} ${widgetId}`,
+          });
         }
 
         default:
@@ -1404,7 +1578,7 @@ process.on('SIGTERM', () => {
 });
 
 // Start the server
-main().catch(error => {
+main().catch((error) => {
   console.error('Fatal error in main():', error);
   process.exit(1);
 });

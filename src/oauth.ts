@@ -5,7 +5,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { URL, URLSearchParams } from 'node:url';
 
-import type { AuthorizationParams, OAuthError, OAuthTokens, PKCEChallenge, RefreshTokenParams, TokenExchangeParams } from './types.js';
+import type {
+  AuthorizationParams,
+  OAuthError,
+  OAuthTokens,
+  PKCEChallenge,
+  RefreshTokenParams,
+  TokenExchangeParams,
+} from './types.js';
 
 const MURAL_OAUTH_BASE = 'https://app.mural.co/api/public/v1/authorization/oauth2';
 const TOKEN_FILE_PATH = path.join(os.homedir(), '.mural-mcp-tokens.json');
@@ -24,7 +31,16 @@ export class MuralOAuth {
     clientId: string,
     clientSecret?: string,
     redirectUri = 'http://localhost:3000/callback',
-    scopes = ['workspaces:read', 'rooms:read', 'rooms:write', 'murals:read', 'murals:write', 'templates:read', 'templates:write', 'identity:read'],
+    scopes = [
+      'workspaces:read',
+      'rooms:read',
+      'rooms:write',
+      'murals:read',
+      'murals:write',
+      'templates:read',
+      'templates:write',
+      'identity:read',
+    ],
   ) {
     this.clientId = clientId;
     this.clientSecret = clientSecret;
@@ -78,14 +94,18 @@ export class MuralOAuth {
         'Content-Type': 'application/x-www-form-urlencoded',
         Accept: 'application/json',
       },
-      body: new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined))),
+      body: new URLSearchParams(
+        Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined)),
+      ),
     });
 
     const data = await response.json();
 
     if (!response.ok) {
       const error = data as OAuthError;
-      throw new Error(`OAuth token exchange failed: ${error.error} - ${error.error_description || 'Unknown error'}`);
+      throw new Error(
+        `OAuth token exchange failed: ${error.error} - ${error.error_description || 'Unknown error'}`,
+      );
     }
 
     const tokens = data as OAuthTokens;
@@ -108,14 +128,18 @@ export class MuralOAuth {
         'Content-Type': 'application/x-www-form-urlencoded',
         Accept: 'application/json',
       },
-      body: new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined))),
+      body: new URLSearchParams(
+        Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined)),
+      ),
     });
 
     const data = await response.json();
 
     if (!response.ok) {
       const error = data as OAuthError;
-      throw new Error(`OAuth token refresh failed: ${error.error} - ${error.error_description || 'Unknown error'}`);
+      throw new Error(
+        `OAuth token refresh failed: ${error.error} - ${error.error_description || 'Unknown error'}`,
+      );
     }
 
     const tokens = data as OAuthTokens;
@@ -154,7 +178,9 @@ export class MuralOAuth {
     }
   }
 
-  private async startCallbackServer(expectedState?: string): Promise<{ code: string; state?: string }> {
+  private async startCallbackServer(
+    expectedState?: string,
+  ): Promise<{ code: string; state?: string }> {
     return new Promise((resolve, reject) => {
       let resolved = false;
 
@@ -163,7 +189,9 @@ export class MuralOAuth {
           // Prevent multiple resolutions
           if (resolved) {
             res.writeHead(200, { 'Content-Type': 'text/html' });
-            res.end('<h1>Already processed</h1><p>Authentication already handled. You can close this window.</p>');
+            res.end(
+              '<h1>Already processed</h1><p>Authentication already handled. You can close this window.</p>',
+            );
             return;
           }
 
@@ -172,7 +200,9 @@ export class MuralOAuth {
           const state = url.searchParams.get('state');
           const error = url.searchParams.get('error');
 
-          console.error(`Callback received - Code: ${code ? 'present' : 'missing'}, State: ${state}, Expected: ${expectedState}`);
+          console.error(
+            `Callback received - Code: ${code ? 'present' : 'missing'}, State: ${state}, Expected: ${expectedState}`,
+          );
 
           if (error) {
             res.writeHead(400, { 'Content-Type': 'text/html' });
@@ -195,7 +225,9 @@ export class MuralOAuth {
           if (expectedState && state !== expectedState) {
             console.error(`State mismatch - Expected: "${expectedState}", Received: "${state}"`);
             res.writeHead(400, { 'Content-Type': 'text/html' });
-            res.end(`<h1>Error</h1><p>Invalid state parameter. Expected: ${expectedState}, Got: ${state}</p>`);
+            res.end(
+              `<h1>Error</h1><p>Invalid state parameter. Expected: ${expectedState}, Got: ${state}</p>`,
+            );
             resolved = true;
             server.close();
             reject(new Error(`Invalid state parameter. Expected: ${expectedState}, Got: ${state}`));
@@ -217,7 +249,7 @@ export class MuralOAuth {
         console.error('OAuth callback server started on http://localhost:3000');
       });
 
-      server.on('error', error => {
+      server.on('error', (error) => {
         if (!resolved) {
           resolved = true;
           reject(error);
@@ -259,7 +291,11 @@ export class MuralOAuth {
   private async performAuthentication(): Promise<OAuthTokens> {
     // Check for existing valid tokens
     const existingTokens = await this.loadTokens();
-    if (existingTokens && existingTokens.expires_at && existingTokens.expires_at > Date.now() + EXPIRY_MARGIN_MS) {
+    if (
+      existingTokens &&
+      existingTokens.expires_at &&
+      existingTokens.expires_at > Date.now() + EXPIRY_MARGIN_MS
+    ) {
       return existingTokens;
     }
 

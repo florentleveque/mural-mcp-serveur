@@ -78,7 +78,9 @@ describe('MuralClient', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
       const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
       expect(url).toBe('https://app.mural.co/api/public/v1/workspaces/ws1');
-      expect((options.headers as Record<string, string>)['Authorization']).toBe('Bearer mock-token');
+      expect((options.headers as Record<string, string>)['Authorization']).toBe(
+        'Bearer mock-token',
+      );
     });
 
     it('returns undefined on 204 No Content', async () => {
@@ -93,7 +95,7 @@ describe('MuralClient', () => {
       await expect(createClient().getWorkspace('ws1')).resolves.toBeUndefined();
     });
 
-    it.each([400, 401, 403])('does not retry on HTTP %i client errors', async status => {
+    it.each([400, 401, 403])('does not retry on HTTP %i client errors', async (status) => {
       fetchMock.mockResolvedValue(mockFetchResponse(status, { message: 'client error' }));
 
       await expect(createClient().getWorkspace('ws1')).rejects.toThrow(`HTTP ${status}`);
@@ -101,14 +103,18 @@ describe('MuralClient', () => {
     });
 
     it('includes the API error message in thrown client errors', async () => {
-      fetchMock.mockResolvedValue(mockFetchResponse(403, { message: 'Forbidden', errors: ['missing scope'] }));
+      fetchMock.mockResolvedValue(
+        mockFetchResponse(403, { message: 'Forbidden', errors: ['missing scope'] }),
+      );
 
       await expect(createClient().getWorkspace('ws1')).rejects.toThrow('Forbidden - missing scope');
     });
 
     it('retries on 500 with exponential backoff then succeeds', async () => {
       vi.useFakeTimers();
-      fetchMock.mockResolvedValueOnce(mockFetchResponse(500, { message: 'oops' })).mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
+      fetchMock
+        .mockResolvedValueOnce(mockFetchResponse(500, { message: 'oops' }))
+        .mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
 
       const promise = createClient().getWorkspace('ws1');
       // First retry waits 2^0 * 1000 = 1000ms
@@ -136,7 +142,12 @@ describe('MuralClient', () => {
       vi.setSystemTime(1_000_000_000_000); // round timestamp so epoch math is exact
       const resetEpoch = Date.now() / 1000 + 2; // 2s ahead, in seconds
       fetchMock
-        .mockResolvedValueOnce(mockFetchResponse(429, null, { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(resetEpoch) }))
+        .mockResolvedValueOnce(
+          mockFetchResponse(429, null, {
+            'x-ratelimit-remaining': '0',
+            'x-ratelimit-reset': String(resetEpoch),
+          }),
+        )
         .mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
 
       const promise = createClient().getWorkspace('ws1');
@@ -171,7 +182,12 @@ describe('MuralClient', () => {
       vi.useFakeTimers();
       vi.setSystemTime(1_000_000_000_000);
       const resetEpoch = Date.now() / 1000 + 60; // 60s ahead
-      fetchMock.mockResolvedValue(mockFetchResponse(429, null, { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(resetEpoch) }));
+      fetchMock.mockResolvedValue(
+        mockFetchResponse(429, null, {
+          'x-ratelimit-remaining': '0',
+          'x-ratelimit-reset': String(resetEpoch),
+        }),
+      );
 
       await expect(createClient().getWorkspace('ws1')).rejects.toThrow('API rate limit exceeded');
       expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -179,7 +195,9 @@ describe('MuralClient', () => {
 
     it('falls back to exponential backoff on 429 without any rate-limit header', async () => {
       vi.useFakeTimers();
-      fetchMock.mockResolvedValueOnce(mockFetchResponse(429)).mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
+      fetchMock
+        .mockResolvedValueOnce(mockFetchResponse(429))
+        .mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
 
       const promise = createClient().getWorkspace('ws1');
       await vi.advanceTimersByTimeAsync(1000); // 2^0 * 1000
@@ -190,7 +208,9 @@ describe('MuralClient', () => {
 
     it('honours the Retry-After header on 429 then retries', async () => {
       vi.useFakeTimers();
-      fetchMock.mockResolvedValueOnce(mockFetchResponse(429, null, { 'Retry-After': '2' })).mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
+      fetchMock
+        .mockResolvedValueOnce(mockFetchResponse(429, null, { 'Retry-After': '2' }))
+        .mockResolvedValueOnce(mockFetchResponse(200, { id: 'ws1' }));
 
       const promise = createClient().getWorkspace('ws1');
       await vi.advanceTimersByTimeAsync(2000);
@@ -201,7 +221,9 @@ describe('MuralClient', () => {
 
     it('waits and retries when the local rate limiter asks for a short wait', async () => {
       vi.useFakeTimers();
-      mocks.canMakeRequest.mockResolvedValueOnce({ allowed: false, waitTimeMs: 1000, reason: 'User rate limit' }).mockResolvedValueOnce({ allowed: true });
+      mocks.canMakeRequest
+        .mockResolvedValueOnce({ allowed: false, waitTimeMs: 1000, reason: 'User rate limit' })
+        .mockResolvedValueOnce({ allowed: true });
       fetchMock.mockResolvedValue(mockFetchResponse(200, { id: 'ws1' }));
 
       const promise = createClient().getWorkspace('ws1');
@@ -212,7 +234,11 @@ describe('MuralClient', () => {
     });
 
     it('throws immediately when the local rate limiter wait is too long', async () => {
-      mocks.canMakeRequest.mockResolvedValue({ allowed: false, waitTimeMs: 60_000, reason: 'App rate limit' });
+      mocks.canMakeRequest.mockResolvedValue({
+        allowed: false,
+        waitTimeMs: 60_000,
+        reason: 'App rate limit',
+      });
 
       await expect(createClient().getWorkspace('ws1')).rejects.toThrow('Rate limit exceeded');
       expect(fetchMock).not.toHaveBeenCalled();
@@ -221,7 +247,9 @@ describe('MuralClient', () => {
     it('throws when a rate limit token cannot be consumed', async () => {
       mocks.consumeRequest.mockResolvedValue(false);
 
-      await expect(createClient().getWorkspace('ws1')).rejects.toThrow('Failed to consume rate limit token');
+      await expect(createClient().getWorkspace('ws1')).rejects.toThrow(
+        'Failed to consume rate limit token',
+      );
       expect(fetchMock).not.toHaveBeenCalled();
     });
   });
@@ -267,14 +295,18 @@ describe('MuralClient', () => {
     it('rejects when the OAuth token is missing the required scope', async () => {
       mocks.getStoredTokens.mockResolvedValue(mockOAuthTokens({ scope: 'workspaces:read' }));
 
-      await expect(createClient().getMuralWidgets('m1')).rejects.toThrow('missing required scope: murals:read');
+      await expect(createClient().getMuralWidgets('m1')).rejects.toThrow(
+        'missing required scope: murals:read',
+      );
       expect(fetchMock).not.toHaveBeenCalled();
     });
   });
 
   describe('getMuralWidget (single)', () => {
     it('unwraps the value envelope returned by the single-widget endpoint', async () => {
-      fetchMock.mockResolvedValue(mockFetchResponse(200, { value: { id: 'w1', type: 'sticky note' } }));
+      fetchMock.mockResolvedValue(
+        mockFetchResponse(200, { value: { id: 'w1', type: 'sticky note' } }),
+      );
 
       const widget = await createClient().getMuralWidget('m1', 'w1');
 
@@ -284,7 +316,10 @@ describe('MuralClient', () => {
     it('returns the body as-is when there is no value envelope', async () => {
       fetchMock.mockResolvedValue(mockFetchResponse(200, { id: 'w1', type: 'shape' }));
 
-      await expect(createClient().getMuralWidget('m1', 'w1')).resolves.toEqual({ id: 'w1', type: 'shape' });
+      await expect(createClient().getMuralWidget('m1', 'w1')).resolves.toEqual({
+        id: 'w1',
+        type: 'shape',
+      });
     });
   });
 
@@ -306,7 +341,9 @@ describe('MuralClient', () => {
 
       await createClient().getWorkspaces(10, 5);
 
-      expect(fetchMock.mock.calls[0]?.[0]).toBe('https://app.mural.co/api/public/v1/workspaces?limit=10&offset=5');
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        'https://app.mural.co/api/public/v1/workspaces?limit=10&offset=5',
+      );
     });
 
     it('deleteWidget resolves on 204 and issues a DELETE request', async () => {
@@ -322,12 +359,16 @@ describe('MuralClient', () => {
 
   describe('export status & download', () => {
     it('getExportStatus unwraps the value envelope and targets the exports endpoint', async () => {
-      fetchMock.mockResolvedValue(mockFetchResponse(200, { value: { url: 'https://s3.example/export.pdf' } }));
+      fetchMock.mockResolvedValue(
+        mockFetchResponse(200, { value: { url: 'https://s3.example/export.pdf' } }),
+      );
 
       const status = await createClient().getExportStatus('m1', 'e1');
 
       expect(status).toEqual({ url: 'https://s3.example/export.pdf' });
-      expect(fetchMock.mock.calls[0]?.[0]).toBe('https://app.mural.co/api/public/v1/murals/m1/exports/e1');
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        'https://app.mural.co/api/public/v1/murals/m1/exports/e1',
+      );
     });
 
     it('getExportStatus returns a payload without url while the export is still processing', async () => {
@@ -340,21 +381,28 @@ describe('MuralClient', () => {
       // Real API behaviour: while the job runs, Mural returns 404 EXPORT_NOT_FOUND
       // ("...or the process has not finished yet"), not a 200 with an empty value.
       fetchMock.mockResolvedValue(
-        mockFetchResponse(404, { code: 'EXPORT_NOT_FOUND', message: 'The export was not found or the process has not finished yet.' }),
+        mockFetchResponse(404, {
+          code: 'EXPORT_NOT_FOUND',
+          message: 'The export was not found or the process has not finished yet.',
+        }),
       );
 
       await expect(createClient().getExportStatus('m1', 'e1')).resolves.toEqual({});
     });
 
     it('getExportStatus still throws on other API errors', async () => {
-      fetchMock.mockResolvedValue(mockFetchResponse(403, { code: 'INVALID_SCOPE', message: 'Invalid scope' }));
+      fetchMock.mockResolvedValue(
+        mockFetchResponse(403, { code: 'INVALID_SCOPE', message: 'Invalid scope' }),
+      );
 
       await expect(createClient().getExportStatus('m1', 'e1')).rejects.toThrow('HTTP 403');
     });
 
     it('downloadExport writes the file to outputPath when the export is ready', async () => {
       fetchMock
-        .mockResolvedValueOnce(mockFetchResponse(200, { value: { url: 'https://s3.example/export.pdf' } }))
+        .mockResolvedValueOnce(
+          mockFetchResponse(200, { value: { url: 'https://s3.example/export.pdf' } }),
+        )
         .mockResolvedValueOnce(new Response('PDF-BYTES', { status: 200 }));
 
       const result = await createClient().downloadExport('m1', 'e1', '/tmp/out/export.pdf');
@@ -362,7 +410,10 @@ describe('MuralClient', () => {
       expect(result.ready).toBe(true);
       expect(result.path).toBe('/tmp/out/export.pdf');
       expect(vi.mocked(fs.mkdir)).toHaveBeenCalledWith('/tmp/out', { recursive: true });
-      expect(vi.mocked(fs.writeFile)).toHaveBeenCalledWith('/tmp/out/export.pdf', expect.any(Buffer));
+      expect(vi.mocked(fs.writeFile)).toHaveBeenCalledWith(
+        '/tmp/out/export.pdf',
+        expect.any(Buffer),
+      );
       // The signed URL is fetched raw, without the Bearer header used for Mural API calls.
       const [, downloadOptions] = fetchMock.mock.calls[1] as [string, RequestInit | undefined];
       expect(downloadOptions).toBeUndefined();
@@ -380,7 +431,10 @@ describe('MuralClient', () => {
 
     it('downloadExport returns ready:false on a 404 EXPORT_NOT_FOUND status without writing', async () => {
       fetchMock.mockResolvedValue(
-        mockFetchResponse(404, { code: 'EXPORT_NOT_FOUND', message: 'The export was not found or the process has not finished yet.' }),
+        mockFetchResponse(404, {
+          code: 'EXPORT_NOT_FOUND',
+          message: 'The export was not found or the process has not finished yet.',
+        }),
       );
 
       const result = await createClient().downloadExport('m1', 'e1', '/tmp/out/export.pdf');
@@ -393,7 +447,9 @@ describe('MuralClient', () => {
 
   describe('MuralApiError', () => {
     it('exposes status, errorCode and apiMessage from the API error body', async () => {
-      fetchMock.mockResolvedValue(mockFetchResponse(404, { code: 'MURAL_NOT_FOUND', message: 'Mural not found' }));
+      fetchMock.mockResolvedValue(
+        mockFetchResponse(404, { code: 'MURAL_NOT_FOUND', message: 'Mural not found' }),
+      );
 
       const error = await createClient()
         .getWorkspace('ws1')
@@ -414,7 +470,9 @@ describe('MuralClient', () => {
     });
 
     it('keeps a message without API details when the error body is not JSON', async () => {
-      fetchMock.mockResolvedValue(new Response('plain text', { status: 400, statusText: 'Bad Request' }));
+      fetchMock.mockResolvedValue(
+        new Response('plain text', { status: 400, statusText: 'Bad Request' }),
+      );
 
       const error = await createClient()
         .getWorkspace('ws1')
@@ -422,11 +480,15 @@ describe('MuralClient', () => {
 
       expect(error).toBeInstanceOf(MuralApiError);
       expect((error as MuralApiError).errorCode).toBeUndefined();
-      expect((error as MuralApiError).message).toBe('Mural API request failed: HTTP 400: Bad Request');
+      expect((error as MuralApiError).message).toBe(
+        'Mural API request failed: HTTP 400: Bad Request',
+      );
     });
 
     it('maps an API 403 INVALID_SCOPE to a permission-denied message in scope-aware methods', async () => {
-      fetchMock.mockResolvedValue(mockFetchResponse(403, { code: 'INVALID_SCOPE', message: 'Invalid scope' }));
+      fetchMock.mockResolvedValue(
+        mockFetchResponse(403, { code: 'INVALID_SCOPE', message: 'Invalid scope' }),
+      );
 
       await expect(createClient().getMuralWidgets('m1')).rejects.toThrow(/^Permission denied/);
     });

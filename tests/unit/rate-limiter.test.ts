@@ -17,8 +17,20 @@ vi.mock('fs/promises', () => ({
 function persistedState(userTokens: number, lastUpdated: number) {
   const now = Date.now();
   return JSON.stringify({
-    userBucket: { capacity: 25, tokens: userTokens, refillRate: 25, lastRefill: now, refillIntervalMs: 1000 },
-    appBucket: { capacity: 10000, tokens: 10000, refillRate: 10000 / 60, lastRefill: now, refillIntervalMs: 60000 },
+    userBucket: {
+      capacity: 25,
+      tokens: userTokens,
+      refillRate: 25,
+      lastRefill: now,
+      refillIntervalMs: 1000,
+    },
+    appBucket: {
+      capacity: 10000,
+      tokens: 10000,
+      refillRate: 10000 / 60,
+      lastRefill: now,
+      refillIntervalMs: 60000,
+    },
     lastUpdated,
   });
 }
@@ -49,7 +61,11 @@ describe('MuralRateLimiter', () => {
     });
 
     it('honours custom capacities', async () => {
-      const limiter = new MuralRateLimiter({ userRequestsPerSecond: 2, appRequestsPerMinute: 50, persistState: false });
+      const limiter = new MuralRateLimiter({
+        userRequestsPerSecond: 2,
+        appRequestsPerMinute: 50,
+        persistState: false,
+      });
       const status = await limiter.getRateLimitStatus();
 
       expect(status.user.capacity).toBe(2);
@@ -77,7 +93,11 @@ describe('MuralRateLimiter', () => {
     });
 
     it('denies when the app bucket is empty even if the user bucket has tokens', async () => {
-      const limiter = new MuralRateLimiter({ userRequestsPerSecond: 10, appRequestsPerMinute: 1, persistState: false });
+      const limiter = new MuralRateLimiter({
+        userRequestsPerSecond: 10,
+        appRequestsPerMinute: 1,
+        persistState: false,
+      });
       await limiter.consumeRequest();
 
       const result = await limiter.canMakeRequest();
@@ -135,7 +155,10 @@ describe('MuralRateLimiter', () => {
 
       await limiter.consumeRequest();
 
-      expect(fs.writeFile).toHaveBeenCalledWith(expect.stringContaining('.mural-mcp-rate-limit.json'), expect.any(String));
+      expect(fs.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('.mural-mcp-rate-limit.json'),
+        expect.any(String),
+      );
     });
 
     it('never touches the filesystem when persistState is disabled', async () => {

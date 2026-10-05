@@ -1,11 +1,28 @@
 import { describe, expect, it } from 'vitest';
 
-import { projectBoards, projectWidgets, toCompactBoard, toCompactRoom, toCompactTemplate, toCompactWidget, toCompactWorkspace } from '../../src/projections.js';
+import {
+  projectBoards,
+  projectWidgets,
+  toCompactBoard,
+  toCompactRoom,
+  toCompactTemplate,
+  toCompactWidget,
+  toCompactWorkspace,
+} from '../../src/projections.js';
 
 describe('projections', () => {
   describe('toCompactWorkspace', () => {
     it('keeps only id and name', () => {
-      const raw = { id: 'ws1', name: 'Workspace', description: 'x', image: 'http://img', locked: false, suspended: false, createdOn: 1, sharingSettings: {} };
+      const raw = {
+        id: 'ws1',
+        name: 'Workspace',
+        description: 'x',
+        image: 'http://img',
+        locked: false,
+        suspended: false,
+        createdOn: 1,
+        sharingSettings: {},
+      };
       expect(toCompactWorkspace(raw)).toEqual({ id: 'ws1', name: 'Workspace' });
     });
   });
@@ -24,7 +41,12 @@ describe('projections', () => {
         createdOn: 1,
         updatedOn: 2,
       };
-      expect(toCompactRoom(raw)).toEqual({ id: 42, name: 'Room', type: 'open', workspaceId: 'ws1' });
+      expect(toCompactRoom(raw)).toEqual({
+        id: 42,
+        name: 'Room',
+        type: 'open',
+        workspaceId: 'ws1',
+      });
     });
 
     it('omits absent optional fields', () => {
@@ -89,7 +111,12 @@ describe('projections', () => {
         viewLink: 'https://view',
         workspaceId: 'ws',
       };
-      expect(toCompactTemplate(raw)).toEqual({ id: 't1', name: 'Profile', description: 'desc', type: 'default' });
+      expect(toCompactTemplate(raw)).toEqual({
+        id: 't1',
+        name: 'Profile',
+        description: 'desc',
+        type: 'default',
+      });
     });
   });
 
@@ -127,27 +154,91 @@ describe('projections', () => {
     });
 
     it('keeps the text of a "text" widget (API uses type "text", not "text box")', () => {
-      const raw = { id: 'wt', type: 'text', x: 0, y: 0, width: 100, text: '<div><b>Titre</b></div>', style: { fontSize: 77 } };
-      expect(toCompactWidget(raw)).toEqual({ id: 'wt', type: 'text', x: 0, y: 0, width: 100, text: '<div><b>Titre</b></div>' });
+      const raw = {
+        id: 'wt',
+        type: 'text',
+        x: 0,
+        y: 0,
+        width: 100,
+        text: '<div><b>Titre</b></div>',
+        style: { fontSize: 77 },
+      };
+      expect(toCompactWidget(raw)).toEqual({
+        id: 'wt',
+        type: 'text',
+        x: 0,
+        y: 0,
+        width: 100,
+        text: '<div><b>Titre</b></div>',
+      });
     });
 
     it('keeps shape-specific fields', () => {
-      const raw = { id: 'w2', type: 'shape', x: 1, y: 2, shape: 'circle', text: 'inside', style: { backgroundColor: '#fff' } };
-      expect(toCompactWidget(raw)).toEqual({ id: 'w2', type: 'shape', x: 1, y: 2, shape: 'circle', text: 'inside', backgroundColor: '#fff' });
+      const raw = {
+        id: 'w2',
+        type: 'shape',
+        x: 1,
+        y: 2,
+        shape: 'circle',
+        text: 'inside',
+        style: { backgroundColor: '#fff' },
+      };
+      expect(toCompactWidget(raw)).toEqual({
+        id: 'w2',
+        type: 'shape',
+        x: 1,
+        y: 2,
+        shape: 'circle',
+        text: 'inside',
+        backgroundColor: '#fff',
+      });
     });
 
     it('keeps arrow anchors and points', () => {
-      const raw = { id: 'w3', type: 'arrow', x: 0, y: 0, points: [{ x: 1, y: 1 }], startWidget: 'a', endWidget: 'b', style: {} };
-      expect(toCompactWidget(raw)).toEqual({ id: 'w3', type: 'arrow', x: 0, y: 0, points: [{ x: 1, y: 1 }], startWidget: 'a', endWidget: 'b' });
+      const raw = {
+        id: 'w3',
+        type: 'arrow',
+        x: 0,
+        y: 0,
+        points: [{ x: 1, y: 1 }],
+        startWidget: 'a',
+        endWidget: 'b',
+        style: {},
+      };
+      expect(toCompactWidget(raw)).toEqual({
+        id: 'w3',
+        type: 'arrow',
+        x: 0,
+        y: 0,
+        points: [{ x: 1, y: 1 }],
+        startWidget: 'a',
+        endWidget: 'b',
+      });
     });
 
     it('keeps the area title', () => {
       const raw = { id: 'w4', type: 'area', x: 0, y: 0, title: 'Zone', width: 100 };
-      expect(toCompactWidget(raw)).toEqual({ id: 'w4', type: 'area', x: 0, y: 0, width: 100, title: 'Zone' });
+      expect(toCompactWidget(raw)).toEqual({
+        id: 'w4',
+        type: 'area',
+        x: 0,
+        y: 0,
+        width: 100,
+        title: 'Zone',
+      });
     });
 
     it('keeps url/filename for image and file widgets', () => {
-      expect(toCompactWidget({ id: 'w5', type: 'image', x: 0, y: 0, url: 'http://img', filename: 'a.png' })).toEqual({
+      expect(
+        toCompactWidget({
+          id: 'w5',
+          type: 'image',
+          x: 0,
+          y: 0,
+          url: 'http://img',
+          filename: 'a.png',
+        }),
+      ).toEqual({
         id: 'w5',
         type: 'image',
         x: 0,
@@ -158,13 +249,45 @@ describe('projections', () => {
     });
 
     it('preserves text/title of unknown widget types but drops unmodeled fields', () => {
-      const raw = { id: 'w6', type: 'comment', x: 5, y: 6, foo: 'bar', text: 'a comment', title: 'label' };
-      expect(toCompactWidget(raw)).toEqual({ id: 'w6', type: 'comment', x: 5, y: 6, text: 'a comment', title: 'label' });
+      const raw = {
+        id: 'w6',
+        type: 'comment',
+        x: 5,
+        y: 6,
+        foo: 'bar',
+        text: 'a comment',
+        title: 'label',
+      };
+      expect(toCompactWidget(raw)).toEqual({
+        id: 'w6',
+        type: 'comment',
+        x: 5,
+        y: 6,
+        text: 'a comment',
+        title: 'label',
+      });
     });
 
     it('keeps the icon untouched of content it does not carry (fallback, no text/title)', () => {
-      const raw = { id: 'ic', type: 'icon', x: 1, y: 2, width: 104, height: 104, name: '321658', title: '', style: { color: '#000' } };
-      expect(toCompactWidget(raw)).toEqual({ id: 'ic', type: 'icon', x: 1, y: 2, width: 104, height: 104 });
+      const raw = {
+        id: 'ic',
+        type: 'icon',
+        x: 1,
+        y: 2,
+        width: 104,
+        height: 104,
+        name: '321658',
+        title: '',
+        style: { color: '#000' },
+      };
+      expect(toCompactWidget(raw)).toEqual({
+        id: 'ic',
+        type: 'icon',
+        x: 1,
+        y: 2,
+        width: 104,
+        height: 104,
+      });
     });
 
     it('projects a list of widgets', () => {

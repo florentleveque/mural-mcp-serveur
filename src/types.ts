@@ -127,7 +127,10 @@ export interface MuralBoard {
   thumbnailUrl?: string;
   _canvasLink?: string;
   sharingSettings?: { link?: string } & Record<string, unknown>;
-  visitorsSettings?: { link?: string; visitors?: string; workspaceMembers?: string } & Record<string, unknown>;
+  visitorsSettings?: { link?: string; visitors?: string; workspaceMembers?: string } & Record<
+    string,
+    unknown
+  >;
 }
 
 // Status payload of an async mural export job (GET /murals/{id}/exports/{exportId}).

@@ -149,13 +149,19 @@ export class MuralRateLimiter {
         tokensRemaining: this.state.userBucket.tokens,
         capacity: this.state.userBucket.capacity,
         refillRate: this.state.userBucket.refillRate,
-        nextRefillIn: Math.max(0, this.state.userBucket.refillIntervalMs - (Date.now() - this.state.userBucket.lastRefill)),
+        nextRefillIn: Math.max(
+          0,
+          this.state.userBucket.refillIntervalMs - (Date.now() - this.state.userBucket.lastRefill),
+        ),
       },
       app: {
         tokensRemaining: this.state.appBucket.tokens,
         capacity: this.state.appBucket.capacity,
         refillRate: this.state.appBucket.refillRate,
-        nextRefillIn: Math.max(0, this.state.appBucket.refillIntervalMs - (Date.now() - this.state.appBucket.lastRefill)),
+        nextRefillIn: Math.max(
+          0,
+          this.state.appBucket.refillIntervalMs - (Date.now() - this.state.appBucket.lastRefill),
+        ),
       },
       lastUpdated: this.state.lastUpdated,
     };
@@ -172,7 +178,7 @@ export class MuralRateLimiter {
       return false;
     }
 
-    await new Promise(resolve => setTimeout(resolve, checkResult.waitTimeMs));
+    await new Promise((resolve) => setTimeout(resolve, checkResult.waitTimeMs));
     return true;
   }
 

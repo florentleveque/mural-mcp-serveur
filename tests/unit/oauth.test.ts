@@ -83,10 +83,20 @@ describe('MuralOAuth', () => {
 
   describe('exchangeCodeForTokens', () => {
     it('returns tokens with a computed expires_at on success', async () => {
-      fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: 'at', refresh_token: 'rt', token_type: 'Bearer', expires_in: 3600 }));
+      fetchMock.mockResolvedValue(
+        mockFetchResponse(200, {
+          access_token: 'at',
+          refresh_token: 'rt',
+          token_type: 'Bearer',
+          expires_in: 3600,
+        }),
+      );
       const before = Date.now();
 
-      const tokens = await asAny(createOAuth('secret')).exchangeCodeForTokens('auth-code', 'verifier');
+      const tokens = await asAny(createOAuth('secret')).exchangeCodeForTokens(
+        'auth-code',
+        'verifier',
+      );
 
       expect(tokens.access_token).toBe('at');
       expect(tokens.expires_at).toBeGreaterThanOrEqual(before + 3600 * 1000);
@@ -114,9 +124,16 @@ describe('MuralOAuth', () => {
     });
 
     it('throws with the OAuth error description on failure', async () => {
-      fetchMock.mockResolvedValue(mockFetchResponse(400, { error: 'invalid_client', error_description: 'Client authentication failed' }));
+      fetchMock.mockResolvedValue(
+        mockFetchResponse(400, {
+          error: 'invalid_client',
+          error_description: 'Client authentication failed',
+        }),
+      );
 
-      await expect(asAny(createOAuth()).exchangeCodeForTokens('auth-code', 'verifier')).rejects.toThrow(
+      await expect(
+        asAny(createOAuth()).exchangeCodeForTokens('auth-code', 'verifier'),
+      ).rejects.toThrow(
         'OAuth token exchange failed: invalid_client - Client authentication failed',
       );
     });
@@ -124,7 +141,13 @@ describe('MuralOAuth', () => {
 
   describe('refreshAccessToken', () => {
     it('returns refreshed tokens on success', async () => {
-      fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: 'new-at', refresh_token: 'new-rt', expires_in: 3600 }));
+      fetchMock.mockResolvedValue(
+        mockFetchResponse(200, {
+          access_token: 'new-at',
+          refresh_token: 'new-rt',
+          expires_in: 3600,
+        }),
+      );
 
       const tokens = await asAny(createOAuth('secret')).refreshAccessToken('old-rt');
 
@@ -135,13 +158,22 @@ describe('MuralOAuth', () => {
     });
 
     it('throws on invalid_grant', async () => {
-      fetchMock.mockResolvedValue(mockFetchResponse(400, { error: 'invalid_grant', error_description: 'Refresh token expired' }));
+      fetchMock.mockResolvedValue(
+        mockFetchResponse(400, {
+          error: 'invalid_grant',
+          error_description: 'Refresh token expired',
+        }),
+      );
 
-      await expect(asAny(createOAuth()).refreshAccessToken('old-rt')).rejects.toThrow('OAuth token refresh failed: invalid_grant - Refresh token expired');
+      await expect(asAny(createOAuth()).refreshAccessToken('old-rt')).rejects.toThrow(
+        'OAuth token refresh failed: invalid_grant - Refresh token expired',
+      );
     });
 
     it('keeps the previous refresh_token when the response omits it', async () => {
-      fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: 'new-at', expires_in: 3600 }));
+      fetchMock.mockResolvedValue(
+        mockFetchResponse(200, { access_token: 'new-at', expires_in: 3600 }),
+      );
 
       const tokens = await asAny(createOAuth('secret')).refreshAccessToken('old-rt');
 
@@ -156,7 +188,10 @@ describe('MuralOAuth', () => {
       vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
 
       await expect(createOAuth().getStoredTokens()).resolves.toEqual(stored);
-      expect(fs.readFile).toHaveBeenCalledWith(expect.stringContaining('.mural-mcp-tokens.json'), 'utf-8');
+      expect(fs.readFile).toHaveBeenCalledWith(
+        expect.stringContaining('.mural-mcp-tokens.json'),
+        'utf-8',
+      );
     });
 
     it('getStoredTokens returns null when the file is missing', async () => {
@@ -194,7 +229,13 @@ describe('MuralOAuth', () => {
       vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
       vi.mocked(fs.chmod).mockResolvedValue(undefined);
-      fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: 'new-at', refresh_token: 'new-rt', expires_in: 3600 }));
+      fetchMock.mockResolvedValue(
+        mockFetchResponse(200, {
+          access_token: 'new-at',
+          refresh_token: 'new-rt',
+          expires_in: 3600,
+        }),
+      );
 
       const tokens = await createOAuth('secret').authenticate();
 
@@ -202,8 +243,15 @@ describe('MuralOAuth', () => {
       const body = fetchMock.mock.calls[0]?.[1]?.body as URLSearchParams;
       expect(body.get('grant_type')).toBe('refresh_token');
       // The token file holds plaintext credentials: it must be written and kept at 0o600.
-      expect(fs.writeFile).toHaveBeenCalledWith(expect.stringContaining('.mural-mcp-tokens.json'), expect.stringContaining('new-at'), { mode: 0o600 });
-      expect(fs.chmod).toHaveBeenCalledWith(expect.stringContaining('.mural-mcp-tokens.json'), 0o600);
+      expect(fs.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('.mural-mcp-tokens.json'),
+        expect.stringContaining('new-at'),
+        { mode: 0o600 },
+      );
+      expect(fs.chmod).toHaveBeenCalledWith(
+        expect.stringContaining('.mural-mcp-tokens.json'),
+        0o600,
+      );
       // Diagnostics must go to stderr, never stdout, to keep the MCP stdio stream clean.
       // biome-ignore lint/suspicious/noConsole: asserting on the console.log spy, not logging
       expect(console.log).not.toHaveBeenCalled();
@@ -215,7 +263,13 @@ describe('MuralOAuth', () => {
       vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
       vi.mocked(fs.chmod).mockResolvedValue(undefined);
-      fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: 'new-at', refresh_token: 'new-rt', expires_in: 3600 }));
+      fetchMock.mockResolvedValue(
+        mockFetchResponse(200, {
+          access_token: 'new-at',
+          refresh_token: 'new-rt',
+          expires_in: 3600,
+        }),
+      );
 
       const tokens = await createOAuth('secret').authenticate();
 
@@ -242,12 +296,21 @@ describe('MuralOAuth', () => {
       vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(stored));
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
       vi.mocked(fs.chmod).mockRejectedValue(Object.assign(new Error('EPERM'), { code: 'EPERM' }));
-      fetchMock.mockResolvedValue(mockFetchResponse(200, { access_token: 'new-at', refresh_token: 'new-rt', expires_in: 3600 }));
+      fetchMock.mockResolvedValue(
+        mockFetchResponse(200, {
+          access_token: 'new-at',
+          refresh_token: 'new-rt',
+          expires_in: 3600,
+        }),
+      );
 
       const tokens = await createOAuth('secret').authenticate();
 
       expect(tokens.access_token).toBe('new-at');
-      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('permissions'), expect.any(Error));
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('permissions'),
+        expect.any(Error),
+      );
     });
 
     it('getValidAccessToken returns the access token of valid stored tokens', async () => {

@@ -8,7 +8,11 @@
  * Build a fetch Response. Pass `null` as body for empty-body responses
  * (e.g. 204 No Content).
  */
-export function mockFetchResponse(status: number, body: unknown = null, headers: Record<string, string> = {}): Response {
+export function mockFetchResponse(
+  status: number,
+  body: unknown = null,
+  headers: Record<string, string> = {},
+): Response {
   return new Response(body === null ? null : JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json', ...headers },
@@ -23,7 +27,8 @@ export function mockOAuthTokens(overrides: Record<string, unknown> = {}) {
     token_type: 'Bearer',
     expires_in: 3600,
     expires_at: Date.now() + 3600 * 1000,
-    scope: 'workspaces:read murals:read murals:write rooms:read rooms:write templates:read templates:write identity:read',
+    scope:
+      'workspaces:read murals:read murals:write rooms:read rooms:write templates:read templates:write identity:read',
     ...overrides,
   };
 }
