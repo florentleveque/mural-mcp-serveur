@@ -86,11 +86,13 @@ credentials.
 ## Preview protection
 
 Vercel protects preview deployments with Vercel Authentication. A browser
-signed in to Vercel as a project member passes; an MCP client needs the
-**Protection Bypass for Automation** secret (project settings, Deployment
-Protection), sent as the `x-vercel-protection-bypass` header. See
-[`docs/live-testing.md`](live-testing.md). Production must stay public: check
-that `https://<your host>/healthz` answers without a Vercel session.
+signed in to Vercel as a project member passes, an MCP client does not: Claude
+Code does not send configured headers on its OAuth requests, so the
+**Protection Bypass for Automation** header cannot get its sign-in through.
+Exempt the branch address you test on instead, as
+[`docs/live-testing.md`](live-testing.md) describes. Production must stay
+public: check that `https://<your host>/healthz` answers without a Vercel
+session.
 
 ## Rotating `TOKEN_ENCRYPTION_KEY`
 

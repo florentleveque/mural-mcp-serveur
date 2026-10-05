@@ -23,26 +23,24 @@ only on an address registered as a redirect URL
 
 ## `.mcp.json`: the preview's tools in a Claude Code session
 
-The repository's `.mcp.json` declares one server, `mural-mcp-dev`, over HTTP
-to `${MURAL_MCP_DEV_URL}/mcp`, with the header
-`x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}`. Claude Code
-expands both from the environment it starts in:
+The repository's `.mcp.json` declares one server, `mural-mcp-dev`, over HTTP to
+the branch address above followed by `/mcp`, written out in full: a new branch
+changes it.
 
-- `MURAL_MCP_DEV_URL`: the branch address above, without a trailing slash.
-- `VERCEL_AUTOMATION_BYPASS_SECRET`: the project's **Protection Bypass for
-  Automation** secret (Vercel project settings, Deployment Protection). Keep it
-  out of the repository and of any output.
+Vercel protects previews with Vercel Authentication, and Claude Code does not
+send the `.mcp.json` headers on its OAuth requests (discovery, registration,
+token): a protected preview cannot be signed in to, even with the Protection
+Bypass for Automation header. The branch address is therefore exempt from the
+protection, with a Deployment Protection Exception on that alias only;
+per-deployment URLs stay protected. For a new branch, add the exception in the
+project's Deployment Protection settings, or through
+`PATCH /aliases/{id}/protection-bypass` with
+`{"override": {"scope": "alias-protection-override", "action": "create"}}`
+(`"revoke"` removes it).
 
-Export them in the shell that launches Claude Code (for example from a file
-your shell profile sources, readable only by you), then start Claude Code in
-the repository. Approve `mural-mcp-dev` when asked (or list it in
-`enabledMcpjsonServers` in your `.claude/settings.local.json`), run `/mcp` and
-sign in. The sign-in pages are on the protected preview too: the browser must
-be signed in to Vercel as a member of the project.
-
-Not verified yet: whether Claude Code sends the `.mcp.json` headers on its
-OAuth requests (discovery, registration, token), and not only on MCP requests.
-If the sign-in fails on one of those with a Vercel 401, that is the cause.
+Start Claude Code in the repository, approve `mural-mcp-dev` when asked (or list
+it in `enabledMcpjsonServers` in your `.claude/settings.local.json`), run `/mcp`
+and sign in.
 
 ## Locally, before the sign-in
 
