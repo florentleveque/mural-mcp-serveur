@@ -20,7 +20,7 @@ hook. Four packages and three config files go away.
 
 | Stage | Command | What it covers |
 | --- | --- | --- |
-| Every edit (Claude Code `PostToolUse` hook, `.claude/settings.json`) | `biome lint --write --skip=types` on the edited files | Fast lint feedback. Formatting is left out on purpose: it only matters before code is shared. |
+| Every edit (Claude Code `PostToolUse` hook, `.claude/hooks/biome-lint.sh`) | `biome lint --write --skip=types --error-on-warnings` on the edited file | Fast lint feedback: what the safe fixes leave is handed back to Claude (exit 2). Formatting is left out on purpose: it only matters before code is shared. |
 | Pre-commit (`lefthook.yml`) | `biome check --write --error-on-warnings` on the staged files | Format, import sorting and the full lint, including the `types`-domain rules the edit hook skips. Fixed files are re-staged. |
 | CI (`pnpm check`) | `biome check --error-on-warnings .` | The same gate on the whole repository, read-only. |
 
