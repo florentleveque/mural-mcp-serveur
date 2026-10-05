@@ -18,16 +18,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "format": "prettier --write \"**/*.{ts,js,json,md}\"",
-    "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",
-    "prepare": "husky",
-    "prepublishOnly": "pnpm build"
-  },
-  "lint-staged": {
-    "*.{ts,js,json,md}": "prettier --write",
-    "src/**/*.ts": "eslint --fix"
+    "prepare": "lefthook install || true",
+    "prepublishOnly": "pnpm build",
+    "check": "biome check --error-on-warnings .",
+    "check:fix": "biome check --write ."
   },
   "keywords": [
     "mcp",
@@ -63,8 +57,7 @@
     "zod": "^4.0.14"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
+    "@biomejs/biome": "2.5.14",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.1",
     "@semantic-release/git": "^10.0.1",
@@ -74,16 +67,9 @@
     "@types/node": "~24.19.0",
     "@vitest/coverage-v8": "^4.1.8",
     "conventional-changelog-conventionalcommits": "^8.0.0",
-    "eslint": "^10.4.1",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.6",
-    "eslint-plugin-unicorn": "^64.0.0",
-    "husky": "^9.1.7",
-    "lint-staged": "^17.0.7",
-    "prettier": "^3.8.3",
+    "lefthook": "^2.1.15",
     "semantic-release": "^25.0.9",
     "typescript": "^5.9.2",
-    "typescript-eslint": "^8.60.1",
     "vitest": "^4.1.8"
   }
 }

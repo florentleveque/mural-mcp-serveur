@@ -1,3 +1,11 @@
+# Which dependencies may run install scripts. pnpm refuses (and errors on) any
+# script not listed here.
+allowBuilds:
+  # lefthook's postinstall only downloads its Go binary as a fallback; the
+  # binary already ships in the platform optional dependency, so the CLI works
+  # with the build script blocked. Kept false deliberately.
+  lefthook: false
+
 # 5 days. pnpm refuses any version younger than this when it resolves the tree,
 # so a compromised release that gets yanked within that window never lands.
 # Renovate only manages direct dependencies; this gate also covers transitive

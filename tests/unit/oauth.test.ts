@@ -205,7 +205,7 @@ describe('MuralOAuth', () => {
       expect(fs.writeFile).toHaveBeenCalledWith(expect.stringContaining('.mural-mcp-tokens.json'), expect.stringContaining('new-at'), { mode: 0o600 });
       expect(fs.chmod).toHaveBeenCalledWith(expect.stringContaining('.mural-mcp-tokens.json'), 0o600);
       // Diagnostics must go to stderr, never stdout, to keep the MCP stdio stream clean.
-      // eslint-disable-next-line no-console -- asserting on the console.log spy, not logging
+      // biome-ignore lint/suspicious/noConsole: asserting on the console.log spy, not logging
       expect(console.log).not.toHaveBeenCalled();
     });
 

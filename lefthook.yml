@@ -1,0 +1,15 @@
+# Git hooks. Installed by the `prepare` script on `pnpm install`.
+#
+# Linting and formatting run at different stages on purpose: lint feedback is
+# worth having on every edit (the Claude Code PostToolUse hook, see
+# .claude/settings.json), formatting only matters before code is shared.
+# Rationale: docs/decisions/lint-tooling.md.
+#
+# This stage formats, sorts imports and runs the full lint, including the
+# `types`-domain rules the per-edit hook skips for speed.
+pre-commit:
+  jobs:
+    - name: biome
+      # No `glob`: Biome filters, so `biome.json` is the only perimeter.
+      run: pnpm exec biome check --write --error-on-warnings --no-errors-on-unmatched {staged_files}
+      stage_fixed: true
