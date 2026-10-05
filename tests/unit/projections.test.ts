@@ -248,6 +248,30 @@ describe('projections', () => {
       });
     });
 
+    it('keeps rows/columns/data for table widgets, dropping metadata', () => {
+      expect(
+        toCompactWidget({
+          id: 'w6',
+          type: 'table',
+          x: 1,
+          y: 2,
+          rows: 2,
+          columns: 3,
+          data: [['a', 'b', 'c']],
+          createdBy: { id: 'u1' },
+          style: { backgroundColor: '#fff' },
+        }),
+      ).toEqual({
+        id: 'w6',
+        type: 'table',
+        x: 1,
+        y: 2,
+        rows: 2,
+        columns: 3,
+        data: [['a', 'b', 'c']],
+      });
+    });
+
     it('preserves text/title of unknown widget types but drops unmodeled fields', () => {
       const raw = {
         id: 'w6',
