@@ -435,7 +435,7 @@ async function main() {
         {
           name: 'download-export',
           description:
-            'Download a mural export to a local file (requires murals:read). Resolves the export URL itself then writes the file to outputPath. Single-shot: if the export is not ready yet it returns ready:false without writing. Normal usage: call this with the exportId returned by export-mural and, while it returns ready:false, wait a few seconds and call it again until ready:true',
+            'Get the download URL of a mural export (requires murals:read). Single-shot: if the export is not ready yet it returns ready:false and no url. Normal usage: call this with the exportId returned by export-mural and, while it returns ready:false, wait a few seconds and call it again until ready:true. The url is a signed link that needs no authentication; status.expireOn is when Mural expires the export, so fetch the file soon',
           inputSchema: {
             type: 'object',
             properties: {
@@ -447,13 +447,8 @@ async function main() {
                 type: 'string',
                 description: 'The export job identifier returned by export-mural',
               },
-              outputPath: {
-                type: 'string',
-                description:
-                  'Absolute path of the local file to write the export to (parent directory is created if missing)',
-              },
             },
-            required: ['muralId', 'exportId', 'outputPath'],
+            required: ['muralId', 'exportId'],
             additionalProperties: false,
           },
         },
@@ -1174,17 +1169,16 @@ async function main() {
           const schema = z.object({
             muralId: z.string().min(1),
             exportId: z.string().min(1),
-            outputPath: z.string().min(1),
           });
-          const { muralId, exportId, outputPath } = schema.parse(args);
-          const result = await muralClient.downloadExport(muralId, exportId, outputPath);
+          const { muralId, exportId } = schema.parse(args);
+          const result = await muralClient.getExportUrl(muralId, exportId);
           return jsonResult({
             ...result,
             muralId,
             exportId,
             message: result.ready
-              ? `Saved export to ${result.path}`
-              : `Export ${exportId} not ready yet — retry later`,
+              ? `Export ${exportId} is ready: fetch url, a signed link that needs no authentication; status.expireOn is when Mural expires the export`
+              : `Export ${exportId} is not ready yet: call download-export again in a few seconds`,
           });
         }
 

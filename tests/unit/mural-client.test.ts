@@ -1,4 +1,3 @@
-import fs from 'node:fs/promises';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MuralApiError, MuralClient } from '../../src/mural-client.js';
@@ -22,14 +21,6 @@ const ALL_SCOPES = [
   'templates:write',
   'identity:read',
 ];
-
-// downloadExport writes the fetched export file to disk via fs/promises.
-vi.mock('fs/promises', () => ({
-  default: {
-    mkdir: vi.fn(),
-    writeFile: vi.fn(),
-  },
-}));
 
 function createClient(): MuralClient {
   return new MuralClient({
@@ -721,7 +712,7 @@ describe('MuralClient', () => {
     });
   });
 
-  describe('export status & download', () => {
+  describe('export status & URL', () => {
     it('getExportStatus unwraps the value envelope and targets the exports endpoint', async () => {
       fetchMock.mockResolvedValue(
         mockFetchResponse(200, { value: { url: 'https://s3.example/export.pdf' } }),
@@ -787,53 +778,33 @@ describe('MuralClient', () => {
       await expect(createClient().getExportStatus('m1', 'e1')).rejects.toBe(foreign);
     });
 
-    it('downloadExport writes the file to outputPath when the export is ready', async () => {
-      fetchMock
-        .mockResolvedValueOnce(
-          mockFetchResponse(200, { value: { url: 'https://s3.example/export.pdf' } }),
-        )
-        .mockResolvedValueOnce(new Response('PDF-BYTES', { status: 200 }));
+    it('getExportUrl returns the signed URL once the export is ready, without fetching it', async () => {
+      const ready = {
+        exportId: 'e1',
+        muralId: 'm1',
+        url: 'https://s3.example/export.pdf?signature=abc',
+        expireOn: 1_780_000_000_000,
+      };
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { value: ready }));
 
-      const result = await createClient().downloadExport('m1', 'e1', '/tmp/out/export.pdf');
-
-      expect(result.ready).toBe(true);
-      expect(result.path).toBe('/tmp/out/export.pdf');
-      expect(vi.mocked(fs.mkdir)).toHaveBeenCalledWith('/tmp/out', { recursive: true });
-      expect(vi.mocked(fs.writeFile)).toHaveBeenCalledWith(
-        '/tmp/out/export.pdf',
-        expect.any(Buffer),
-      );
-      // The signed URL is fetched raw, without the Bearer header used for Mural API calls.
-      const [, downloadOptions] = fetchMock.mock.calls[1] as [string, RequestInit | undefined];
-      expect(downloadOptions).toBeUndefined();
+      await expect(createClient().getExportUrl('m1', 'e1')).resolves.toEqual({
+        ready: true,
+        url: ready.url,
+        status: ready,
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1); // the status call only
     });
 
-    it('downloadExport throws when the signed URL download fails', async () => {
-      fetchMock
-        .mockResolvedValueOnce(
-          mockFetchResponse(200, { value: { url: 'https://s3.example/export.pdf' } }),
-        )
-        .mockResolvedValueOnce(new Response('', { status: 403, statusText: 'Forbidden' }));
-
-      await expect(
-        createClient().downloadExport('m1', 'e1', '/tmp/out/export.pdf'),
-      ).rejects.toThrow(
-        'Mural API request failed: HTTP 403: Forbidden - Failed to download export file',
-      );
-      expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled();
-    });
-
-    it('downloadExport does not download or write when the export is not ready yet', async () => {
+    it('getExportUrl returns ready:false without a url while the export is processing', async () => {
       fetchMock.mockResolvedValue(mockFetchResponse(200, { value: {} }));
 
-      const result = await createClient().downloadExport('m1', 'e1', '/tmp/out/export.pdf');
-
-      expect(result.ready).toBe(false);
-      expect(fetchMock).toHaveBeenCalledTimes(1); // status only, no download attempt
-      expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled();
+      await expect(createClient().getExportUrl('m1', 'e1')).resolves.toEqual({
+        ready: false,
+        status: {},
+      });
     });
 
-    it('downloadExport returns ready:false on a 404 EXPORT_NOT_FOUND status without writing', async () => {
+    it('getExportUrl returns ready:false on a 404 EXPORT_NOT_FOUND status', async () => {
       fetchMock.mockResolvedValue(
         mockFetchResponse(404, {
           code: 'EXPORT_NOT_FOUND',
@@ -841,11 +812,10 @@ describe('MuralClient', () => {
         }),
       );
 
-      const result = await createClient().downloadExport('m1', 'e1', '/tmp/out/export.pdf');
-
-      expect(result.ready).toBe(false);
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled();
+      await expect(createClient().getExportUrl('m1', 'e1')).resolves.toEqual({
+        ready: false,
+        status: {},
+      });
     });
   });
 

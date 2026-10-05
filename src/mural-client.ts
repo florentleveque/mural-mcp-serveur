@@ -1,6 +1,3 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
-
 import type {
   CreateStickyNoteRequest,
   MuralBoard,
@@ -556,36 +553,18 @@ export class MuralClient {
     }
   }
 
-  async downloadExport(
+  /**
+   * The signed URL of a finished export. It is returned, not fetched: the file
+   * reaches whoever needs it without passing through this server.
+   */
+  async getExportUrl(
     muralId: string,
     exportId: string,
-    outputPath: string,
-  ): Promise<{ ready: boolean; path?: string; status: MuralExportStatus }> {
-    try {
-      const status = await this.getExportStatus(muralId, exportId);
-      if (typeof status?.url !== 'string') {
-        // Export job not finished yet — leave the disk untouched so the caller can retry.
-        return { ready: false, status };
-      }
-      // The export URL is a signed third-party (S3) link: fetch it raw, without the
-      // Bearer header makeAuthenticatedRequest would inject and without JSON parsing.
-      const res = await fetch(status.url);
-      if (!res.ok) {
-        throw new MuralApiError(
-          res.status,
-          res.statusText,
-          undefined,
-          'Failed to download export file',
-        );
-      }
-      const buffer = Buffer.from(await res.arrayBuffer());
-      await fs.mkdir(path.dirname(outputPath), { recursive: true });
-      await fs.writeFile(outputPath, buffer);
-      return { ready: true, path: outputPath, status };
-    } catch (error) {
-      console.error(`Failed to download export for mural ${muralId} (export ${exportId}):`, error);
-      throw error;
-    }
+  ): Promise<{ ready: boolean; url?: string; status: MuralExportStatus }> {
+    const status = await this.getExportStatus(muralId, exportId);
+    return typeof status.url === 'string'
+      ? { ready: true, url: status.url, status }
+      : { ready: false, status };
   }
 
   async getWorkspaceMurals(workspaceId: string): Promise<MuralBoard[]> {
