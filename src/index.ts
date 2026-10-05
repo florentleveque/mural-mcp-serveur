@@ -9,13 +9,7 @@ import { z } from 'zod';
 import { jsonError, jsonResult } from './mcp-format.js';
 import { MuralClient } from './mural-client.js';
 import { MuralOAuth } from './oauth.js';
-import {
-  projectBoards,
-  projectTemplates,
-  projectWidgets,
-  toCompactBoard,
-  toCompactWidget,
-} from './projections.js';
+import { projectBoards, projectWidgets, toCompactBoard, toCompactWidget } from './projections.js';
 import type { ToolContext, ToolDefinition } from './tools/definitions.js';
 import { toolDefinitions } from './tools/registry.js';
 
@@ -160,64 +154,6 @@ async function main() {
               },
             },
             required: ['roomId'],
-            additionalProperties: false,
-          },
-        },
-        {
-          name: 'list-workspace-templates',
-          description:
-            "List a workspace's templates (default + custom), or search them by name. Returns all pages. Compact view keeps: id, name, description, type. Pass verbose=true for the full raw objects (thumbUrl, viewLink, createdBy, updatedOn, ...).",
-          inputSchema: {
-            type: 'object',
-            properties: {
-              workspaceId: {
-                type: 'string',
-                description: 'The unique identifier of the workspace',
-              },
-              searchQuery: {
-                type: 'string',
-                description:
-                  'Optional. If provided, search templates by name instead of listing all',
-              },
-              withoutDefault: {
-                type: 'boolean',
-                description:
-                  'If true, exclude Mural default templates and return only custom ones (optional, ignored when searchQuery is set)',
-              },
-              verbose: {
-                type: 'boolean',
-                description:
-                  'If true, return the full raw objects instead of the compact view (optional, defaults to false)',
-              },
-            },
-            required: ['workspaceId'],
-            additionalProperties: false,
-          },
-        },
-        {
-          name: 'create-mural-from-template',
-          description: 'Create a new mural in a room from a template',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              templateId: {
-                type: 'string',
-                description: 'The unique identifier of the template to instantiate',
-              },
-              title: {
-                type: 'string',
-                description: 'Title of the new mural',
-              },
-              roomId: {
-                type: 'number',
-                description: 'The numeric identifier of the destination room',
-              },
-              folderId: {
-                type: 'string',
-                description: 'Optional destination folder id within the room',
-              },
-            },
-            required: ['templateId', 'title', 'roomId'],
             additionalProperties: false,
           },
         },
@@ -886,51 +822,6 @@ async function main() {
             boards: verbose ? boards : projectBoards(boards),
             count: boards.length,
             roomId,
-          });
-        }
-
-        case 'list-workspace-templates': {
-          const schema = z.object({
-            workspaceId: z.string().min(1),
-            searchQuery: z.string().optional(),
-            withoutDefault: z.boolean().optional().default(false),
-            verbose: verboseFlag,
-          });
-
-          const { workspaceId, searchQuery, withoutDefault, verbose } = schema.parse(args);
-          const templates = await muralClient.getWorkspaceTemplates(
-            workspaceId,
-            searchQuery,
-            withoutDefault,
-          );
-
-          return jsonResult({
-            templates: verbose ? templates : projectTemplates(templates),
-            count: templates.length,
-            workspaceId,
-            searchQuery: searchQuery ?? null,
-          });
-        }
-
-        case 'create-mural-from-template': {
-          const schema = z.object({
-            templateId: z.string().min(1),
-            title: z.string().min(1),
-            roomId: z.number(),
-            folderId: z.string().optional(),
-          });
-
-          const { templateId, title, roomId, folderId } = schema.parse(args);
-          const mural = await muralClient.createMuralFromTemplate(
-            templateId,
-            title,
-            roomId,
-            folderId,
-          );
-
-          return jsonResult({
-            mural: toCompactBoard(mural),
-            message: `Created mural "${title}" from template ${templateId} in room ${roomId}`,
           });
         }
 

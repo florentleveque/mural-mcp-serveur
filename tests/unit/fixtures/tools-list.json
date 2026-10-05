@@ -139,6 +139,81 @@
     }
   },
   {
+    "name": "list-workspace-templates",
+    "title": "List Workspace Templates",
+    "description": "List a workspace's templates (default + custom), or search them by name. Returns all pages. Compact view keeps: id, name, description, type. Pass verbose=true for the full raw objects (thumbUrl, viewLink, createdBy, updatedOn, ...).",
+    "inputSchema": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The unique identifier of the workspace"
+        },
+        "searchQuery": {
+          "description": "Optional. If provided, search templates by name instead of listing all",
+          "type": "string"
+        },
+        "withoutDefault": {
+          "default": false,
+          "description": "If true, exclude Mural default templates and return only custom ones (optional, ignored when searchQuery is set)",
+          "type": "boolean"
+        },
+        "verbose": {
+          "default": false,
+          "description": "If true, return the full raw objects instead of the compact view (optional, defaults to false)",
+          "type": "boolean"
+        }
+      },
+      "required": ["workspaceId"],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "create-mural-from-template",
+    "title": "Create Mural from Template",
+    "description": "Create a new mural in a room from a template",
+    "inputSchema": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "templateId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The unique identifier of the template to instantiate"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Title of the new mural"
+        },
+        "roomId": {
+          "type": "number",
+          "description": "The numeric identifier of the destination room"
+        },
+        "folderId": {
+          "description": "Optional destination folder id within the room",
+          "type": "string"
+        }
+      },
+      "required": ["templateId", "title", "roomId"],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
     "name": "test-connection",
     "description": "Test the connection to Mural API and verify authentication",
     "inputSchema": {
@@ -200,60 +275,6 @@
         }
       },
       "required": ["roomId"],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "list-workspace-templates",
-    "description": "List a workspace's templates (default + custom), or search them by name. Returns all pages. Compact view keeps: id, name, description, type. Pass verbose=true for the full raw objects (thumbUrl, viewLink, createdBy, updatedOn, ...).",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "workspaceId": {
-          "type": "string",
-          "description": "The unique identifier of the workspace"
-        },
-        "searchQuery": {
-          "type": "string",
-          "description": "Optional. If provided, search templates by name instead of listing all"
-        },
-        "withoutDefault": {
-          "type": "boolean",
-          "description": "If true, exclude Mural default templates and return only custom ones (optional, ignored when searchQuery is set)"
-        },
-        "verbose": {
-          "type": "boolean",
-          "description": "If true, return the full raw objects instead of the compact view (optional, defaults to false)"
-        }
-      },
-      "required": ["workspaceId"],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "create-mural-from-template",
-    "description": "Create a new mural in a room from a template",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "templateId": {
-          "type": "string",
-          "description": "The unique identifier of the template to instantiate"
-        },
-        "title": {
-          "type": "string",
-          "description": "Title of the new mural"
-        },
-        "roomId": {
-          "type": "number",
-          "description": "The numeric identifier of the destination room"
-        },
-        "folderId": {
-          "type": "string",
-          "description": "Optional destination folder id within the room"
-        }
-      },
-      "required": ["templateId", "title", "roomId"],
       "additionalProperties": false
     }
   },
