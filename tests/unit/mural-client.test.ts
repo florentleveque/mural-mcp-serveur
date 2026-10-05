@@ -4,17 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MuralApiError, MuralClient } from '../../src/mural-client.js';
 import { mockFetchResponse } from './helpers.js';
 
-// MuralClient receives its token provider and instantiates MuralRateLimiter
-// internally, so only the rate limiter module is mocked. The hoisted vi.fn()
-// handles let each test configure behaviour per call.
+// MuralClient receives its token provider: the hoisted vi.fn() handles let
+// each test configure behaviour per call.
 const mocks = vi.hoisted(() => ({
   getValidAccessToken: vi.fn(),
   getScopes: vi.fn(),
   invalidateAccessToken: vi.fn(),
-  canMakeRequest: vi.fn(),
-  consumeRequest: vi.fn(),
-  getRateLimitStatus: vi.fn(),
-  reset: vi.fn(),
 }));
 
 const ALL_SCOPES = [
@@ -27,15 +22,6 @@ const ALL_SCOPES = [
   'templates:write',
   'identity:read',
 ];
-
-vi.mock('../../src/rate-limiter.js', () => ({
-  MuralRateLimiter: class {
-    canMakeRequest = mocks.canMakeRequest;
-    consumeRequest = mocks.consumeRequest;
-    getRateLimitStatus = mocks.getRateLimitStatus;
-    reset = mocks.reset;
-  },
-}));
 
 // downloadExport writes the fetched export file to disk via fs/promises.
 vi.mock('fs/promises', () => ({
@@ -59,8 +45,6 @@ describe('MuralClient', () => {
   beforeEach(() => {
     mocks.getValidAccessToken.mockResolvedValue('mock-token');
     mocks.getScopes.mockResolvedValue(ALL_SCOPES);
-    mocks.canMakeRequest.mockResolvedValue({ allowed: true });
-    mocks.consumeRequest.mockResolvedValue(true);
     fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     // The client logs retries and failures on stderr; keep test output clean.
@@ -282,43 +266,6 @@ describe('MuralClient', () => {
       expect(console.warn).toHaveBeenCalledWith(
         'API rate limit hit (HTTP 429). Retrying after 2000ms... (attempt 1/4)',
       );
-    });
-
-    it('waits and retries when the local rate limiter asks for a short wait', async () => {
-      vi.useFakeTimers();
-      mocks.canMakeRequest
-        .mockResolvedValueOnce({ allowed: false, waitTimeMs: 1000, reason: 'User rate limit' })
-        .mockResolvedValueOnce({ allowed: true });
-      fetchMock.mockResolvedValue(mockFetchResponse(200, { id: 'ws1' }));
-
-      const promise = createClient().getWorkspace('ws1');
-      await vi.advanceTimersByTimeAsync(1000);
-
-      await expect(promise).resolves.toEqual({ id: 'ws1' });
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(console.warn).toHaveBeenCalledWith(
-        'Rate limit hit: User rate limit. Waiting 1000ms...',
-      );
-    });
-
-    it('throws immediately when the local rate limiter wait is too long', async () => {
-      mocks.canMakeRequest.mockResolvedValue({
-        allowed: false,
-        waitTimeMs: 60_000,
-        reason: 'App rate limit',
-      });
-
-      await expect(createClient().getWorkspace('ws1')).rejects.toThrow('Rate limit exceeded');
-      expect(fetchMock).not.toHaveBeenCalled();
-    });
-
-    it('throws when a rate limit token cannot be consumed', async () => {
-      mocks.consumeRequest.mockResolvedValue(false);
-
-      await expect(createClient().getWorkspace('ws1')).rejects.toThrow(
-        'Failed to consume rate limit token',
-      );
-      expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it.each(['authentication failed', 'authorization denied', 'Rate limit exceeded: upstream'])(

@@ -151,16 +151,6 @@ async function main() {
           },
         },
         {
-          name: 'get-rate-limit-status',
-          description:
-            'Get current rate limiting status including remaining tokens and refresh times',
-          inputSchema: {
-            type: 'object',
-            properties: {},
-            additionalProperties: false,
-          },
-        },
-        {
           name: 'list-workspace-boards',
           description:
             'List all boards (murals) within a specific workspace. Compact view keeps: id, title, status, roomId, workspaceId, infinite, updatedOn, _canvasLink. Pass verbose=true for the full raw objects (thumbnailUrl, sharing/visitor links, state, createdBy, ...).',
@@ -980,18 +970,6 @@ async function main() {
           return jsonResult({
             debug: debugInfo,
             message: 'Raw API response data for troubleshooting',
-          });
-        }
-
-        case 'get-rate-limit-status': {
-          const rateLimitStatus = await muralClient.getRateLimitStatus();
-
-          return jsonResult({
-            rateLimits: rateLimitStatus,
-            explanation: {
-              user: `${rateLimitStatus.user.tokensRemaining}/${rateLimitStatus.user.capacity} requests available (${rateLimitStatus.user.refillRate}/second)`,
-              app: `${rateLimitStatus.app.tokensRemaining}/${rateLimitStatus.app.capacity} requests available (${rateLimitStatus.app.refillRate}/minute)`,
-            },
           });
         }
 

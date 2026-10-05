@@ -25,7 +25,6 @@ A Model Context Protocol (MCP) server that provides integration with the Mural v
 - `test-connection`: Test the connection to Mural API and verify authentication
 - `clear-auth`: Clear stored authentication tokens (forces re-authentication)
 - `check-user-scopes`: Show the current token's OAuth scopes
-- `get-rate-limit-status`: Current rate-limiting status
 - `debug-api-response`: Raw workspaces API response (troubleshooting)
 
 **Workspaces**
@@ -262,7 +261,6 @@ mural-mcp-serveur/
 │   ├── index.ts          # Main MCP server (tool definitions + handlers)
 │   ├── oauth.ts          # OAuth 2.0 implementation
 │   ├── mural-client.ts   # Mural API client
-│   ├── rate-limiter.ts   # API rate limiting
 │   └── types.ts          # TypeScript interfaces
 ├── build/                # Compiled output
 ├── spec/                 # Documentation

@@ -1,7 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { MuralRateLimiter } from './rate-limiter.js';
 import type {
   CreateStickyNoteRequest,
   MuralBoard,
@@ -12,7 +11,6 @@ import type {
   MuralUser,
   MuralWidget,
   MuralWorkspace,
-  RateLimitConfig,
   ScopeCheckResult,
   UpdateStickyNoteRequest,
 } from './types.js';
@@ -49,14 +47,9 @@ export class MuralApiError extends Error {
 
 export class MuralClient {
   private baseUrl: string;
-  private rateLimiter: MuralRateLimiter;
 
-  constructor(
-    private readonly tokens: MuralTokenProvider,
-    rateLimitConfig?: Partial<RateLimitConfig>,
-  ) {
+  constructor(private readonly tokens: MuralTokenProvider) {
     this.baseUrl = MURAL_API_BASE;
-    this.rateLimiter = new MuralRateLimiter(rateLimitConfig);
   }
 
   private async makeAuthenticatedRequest<T>(
@@ -66,28 +59,6 @@ export class MuralClient {
   ): Promise<T> {
     let retriedAfter401 = false;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      // Check rate limits before making request
-      const rateLimitCheck = await this.rateLimiter.canMakeRequest();
-      if (!rateLimitCheck.allowed) {
-        if (rateLimitCheck.waitTimeMs && rateLimitCheck.waitTimeMs <= 5000) {
-          // If wait time is reasonable (≤5s), wait and retry
-          console.warn(
-            `Rate limit hit: ${rateLimitCheck.reason}. Waiting ${rateLimitCheck.waitTimeMs}ms...`,
-          );
-          await new Promise((resolve) => setTimeout(resolve, rateLimitCheck.waitTimeMs));
-          continue;
-        } else {
-          // If wait time is too long or not available, throw error
-          throw new Error(`Rate limit exceeded: ${rateLimitCheck.reason}`);
-        }
-      }
-
-      // Consume rate limit token
-      const consumed = await this.rateLimiter.consumeRequest();
-      if (!consumed) {
-        throw new Error('Failed to consume rate limit token');
-      }
-
       try {
         const accessToken = await this.tokens.getValidAccessToken();
 
@@ -265,14 +236,6 @@ export class MuralClient {
       console.error('Connection test failed:', error);
       return false;
     }
-  }
-
-  async getRateLimitStatus() {
-    return await this.rateLimiter.getRateLimitStatus();
-  }
-
-  async resetRateLimits(): Promise<void> {
-    await this.rateLimiter.reset();
   }
 
   /**

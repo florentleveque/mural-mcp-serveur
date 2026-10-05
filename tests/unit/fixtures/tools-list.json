@@ -71,15 +71,6 @@
     }
   },
   {
-    "name": "get-rate-limit-status",
-    "description": "Get current rate limiting status including remaining tokens and refresh times",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
-    }
-  },
-  {
     "name": "list-workspace-boards",
     "description": "List all boards (murals) within a specific workspace. Compact view keeps: id, title, status, roomId, workspaceId, infinite, updatedOn, _canvasLink. Pass verbose=true for the full raw objects (thumbnailUrl, sharing/visitor links, state, createdBy, ...).",
     "inputSchema": {
