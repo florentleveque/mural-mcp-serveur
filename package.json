@@ -21,7 +21,11 @@
     "prepare": "lefthook install || true",
     "prepublishOnly": "pnpm build",
     "check": "biome check --error-on-warnings .",
-    "check:fix": "biome check --write ."
+    "check:fix": "biome check --write .",
+    "test:mutation": "stryker run",
+    "test:mutation:canary": "node scripts/mutation-canary.mjs",
+    "test:mutation:diff": "node scripts/mutation-scope.mjs diff",
+    "test:mutation:summary": "node scripts/mutation-scope.mjs summary"
   },
   "keywords": [
     "mcp",
@@ -64,6 +68,8 @@
     "@semantic-release/github": "^12.0.10",
     "@semantic-release/npm": "^13.2.0",
     "@semantic-release/release-notes-generator": "^14.0.3",
+    "@stryker-mutator/core": "^10.0.0",
+    "@stryker-mutator/vitest-runner": "^10.0.0",
     "@types/node": "~24.19.0",
     "@vitest/coverage-v8": "^5.0.2",
     "conventional-changelog-conventionalcommits": "^8.0.0",

@@ -47,3 +47,7 @@ coverage/
 
 # Claude IDE settings
 .claude/package-lock.json
+
+# Mutation testing: anchored, so a future `tests/functional/reports/` stays tracked.
+/reports/
+/.stryker-tmp/

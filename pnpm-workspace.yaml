@@ -11,3 +11,10 @@ allowBuilds:
 # Renovate only manages direct dependencies; this gate also covers transitive
 # ones, refreshed by lockfile maintenance (see renovate.json).
 minimumReleaseAge: 7200
+
+# Carries the unmerged upstream fix stryker-js#6214: vitest 5 joins qualified
+# test names with ' > ', so the runner's filter matched nothing, every mutant
+# ran zero tests and came back Survived. Drop the patch once a release ships
+# the fix. Background: docs/decisions/mutation-testing.md.
+patchedDependencies:
+  '@stryker-mutator/vitest-runner@10.0.0': patches/@stryker-mutator__vitest-runner@10.0.0.patch
