@@ -1261,38 +1261,70 @@
   },
   {
     "name": "test-connection",
+    "title": "Test Connection",
     "description": "Test the connection to Mural API and verify authentication",
     "inputSchema": {
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
     }
   },
   {
     "name": "clear-auth",
+    "title": "Clear Authentication",
     "description": "Clear stored authentication tokens (requires re-authentication)",
     "inputSchema": {
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
     }
   },
   {
     "name": "debug-api-response",
+    "title": "Debug API Response",
     "description": "Debug tool: Show raw API response from workspaces endpoint for troubleshooting",
     "inputSchema": {
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
     }
   },
   {
     "name": "check-user-scopes",
+    "title": "Check User Scopes",
     "description": "Check the current user's OAuth scopes and permissions",
     "inputSchema": {
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
     }
   }
 ]

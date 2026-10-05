@@ -4,9 +4,8 @@ import 'dotenv/config';
 
 import { type ListToolsResult, Server, type Tool } from '@modelcontextprotocol/server';
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
-import { z } from 'zod';
 
-import { jsonError, jsonResult } from './mcp-format.js';
+import { jsonError } from './mcp-format.js';
 import { MuralClient } from './mural-client.js';
 import { MuralOAuth } from './oauth.js';
 import type { ToolContext, ToolDefinition } from './tools/definitions.js';
@@ -30,9 +29,6 @@ function toListedTool(tool: ToolDefinition): Tool {
     annotations: tool.annotations,
   };
 }
-
-// Shared Zod field for the `verbose` escape hatch exposed by every read tool.
-const verboseFlag = z.boolean().optional().default(false);
 
 function validateEnvironment(): { clientId: string; clientSecret: string; redirectUri?: string } {
   const clientId = process.env.MURAL_CLIENT_ID;
@@ -81,131 +77,20 @@ async function main() {
     },
   );
 
-  // List available tools
   server.setRequestHandler(
     'tools/list',
-    async (): Promise<ListToolsResult> => ({
-      tools: [
-        ...toolDefinitions.map(toListedTool),
-        {
-          name: 'test-connection',
-          description: 'Test the connection to Mural API and verify authentication',
-          inputSchema: {
-            type: 'object',
-            properties: {},
-            additionalProperties: false,
-          },
-        },
-        {
-          name: 'clear-auth',
-          description: 'Clear stored authentication tokens (requires re-authentication)',
-          inputSchema: {
-            type: 'object',
-            properties: {},
-            additionalProperties: false,
-          },
-        },
-        {
-          name: 'debug-api-response',
-          description:
-            'Debug tool: Show raw API response from workspaces endpoint for troubleshooting',
-          inputSchema: {
-            type: 'object',
-            properties: {},
-            additionalProperties: false,
-          },
-        },
-        {
-          name: 'check-user-scopes',
-          description: "Check the current user's OAuth scopes and permissions",
-          inputSchema: {
-            type: 'object',
-            properties: {},
-            additionalProperties: false,
-          },
-        },
-      ],
-    }),
+    async (): Promise<ListToolsResult> => ({ tools: toolDefinitions.map(toListedTool) }),
   );
 
-  // Handle tool calls
   server.setRequestHandler('tools/call', async (request) => {
     const { name, arguments: args } = request.params;
 
     try {
       const tool = definitions.get(name);
-      if (tool) {
-        return await tool.handler(tool.inputSchema.parse(args ?? {}), context);
+      if (!tool) {
+        throw new Error(`Unknown tool: ${name}`);
       }
-
-      switch (name) {
-        case 'test-connection': {
-          const isConnected = await muralClient.testConnection();
-
-          return jsonResult({
-            connected: isConnected,
-            message: isConnected
-              ? 'Successfully connected to Mural API'
-              : 'Failed to connect to Mural API',
-          });
-        }
-
-        case 'clear-auth': {
-          await oauth.clearTokens();
-
-          return jsonResult({
-            message:
-              'Authentication tokens cleared. You will need to re-authenticate on the next API call.',
-          });
-        }
-
-        case 'debug-api-response': {
-          const debugInfo = await muralClient.debugWorkspacesAPI();
-
-          return jsonResult({
-            debug: debugInfo,
-            message: 'Raw API response data for troubleshooting',
-          });
-        }
-
-        case 'check-user-scopes': {
-          const scopes = await muralClient.getUserScopes();
-
-          // Only try to get user info if we have identity:read scope
-          let user = null;
-          if (scopes.includes('identity:read')) {
-            user = await muralClient.getCurrentUser().catch(() => null);
-          }
-
-          const expectedScopes = [
-            'workspaces:read',
-            'rooms:read',
-            'rooms:write',
-            'murals:read',
-            'murals:write',
-            'templates:read',
-            'templates:write',
-            'identity:read',
-          ];
-          const missing = expectedScopes.filter((scope) => !scopes.includes(scope));
-
-          return jsonResult({
-            user: user
-              ? {
-                  id: user.id,
-                  firstName: user.firstName,
-                  lastName: user.lastName,
-                  email: user.email,
-                }
-              : null,
-            scopes,
-            missing,
-          });
-        }
-
-        default:
-          throw new Error(`Unknown tool: ${name}`);
-      }
+      return await tool.handler(tool.inputSchema.parse(args ?? {}), context);
     } catch (error) {
       return jsonError(error, name);
     }
