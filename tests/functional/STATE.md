@@ -11,7 +11,9 @@ the other LLM before pushing. The leading LLM reads reports and writes verdicts;
 the executing LLM runs scenarios and writes the raw and report artifacts.
 Protocol: [`README.md`](README.md).
 
-No scenario yet: the first ones arrive with the remote HTTP server (PR #18).
-
 | Scenario | Status | Last update |
 | -------- | ------ | ----------- |
+| 01-sign-in | pending | 2026-10-05 |
+| 02-tool-surface | pending | 2026-10-05 |
+| 03-read | pending | 2026-10-05 |
+| 04-write | pending | 2026-10-05 |
