@@ -1,7 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { MuralOAuth } from './oauth.js';
 import { MuralRateLimiter } from './rate-limiter.js';
 import type {
   CreateStickyNoteRequest,
@@ -9,6 +8,7 @@ import type {
   MuralExportStatus,
   MuralRoom,
   MuralTemplate,
+  MuralTokenProvider,
   MuralUser,
   MuralWidget,
   MuralWorkspace,
@@ -47,41 +47,16 @@ export class MuralApiError extends Error {
   }
 }
 
-// Global authentication promise to prevent multiple concurrent auth flows
-let globalAuthPromise: Promise<string> | null = null;
-
 export class MuralClient {
-  private oauth: MuralOAuth;
   private baseUrl: string;
   private rateLimiter: MuralRateLimiter;
 
   constructor(
-    clientId: string,
-    clientSecret?: string,
-    redirectUri?: string,
+    private readonly tokens: MuralTokenProvider,
     rateLimitConfig?: Partial<RateLimitConfig>,
   ) {
-    this.oauth = new MuralOAuth(clientId, clientSecret, redirectUri);
     this.baseUrl = MURAL_API_BASE;
     this.rateLimiter = new MuralRateLimiter(rateLimitConfig);
-  }
-
-  private async getAccessToken(): Promise<string> {
-    // If authentication is already in progress globally, wait for it
-    if (globalAuthPromise) {
-      return globalAuthPromise;
-    }
-
-    // Start new authentication and store globally
-    globalAuthPromise = this.oauth.getValidAccessToken();
-
-    try {
-      const token = await globalAuthPromise;
-      return token;
-    } finally {
-      // Clear the global promise when done (success or failure)
-      globalAuthPromise = null;
-    }
   }
 
   private async makeAuthenticatedRequest<T>(
@@ -113,7 +88,7 @@ export class MuralClient {
       }
 
       try {
-        const accessToken = await this.getAccessToken();
+        const accessToken = await this.tokens.getValidAccessToken();
 
         const url = `${this.baseUrl}${endpoint}`;
         const headers = {
@@ -280,12 +255,6 @@ export class MuralClient {
       console.error('Connection test failed:', error);
       return false;
     }
-  }
-
-  async clearAuthentication(): Promise<void> {
-    // Clear the global auth promise
-    globalAuthPromise = null;
-    await this.oauth.clearTokens();
   }
 
   async getRateLimitStatus() {
@@ -749,36 +718,7 @@ export class MuralClient {
 
   async getUserScopes(): Promise<string[]> {
     try {
-      // Extract scopes from the stored OAuth token (primary method)
-      const tokens = await this.oauth.getStoredTokens();
-      if (!tokens) {
-        return [];
-      }
-
-      // First check if scopes are in the top-level scope field
-      if (tokens.scope) {
-        return tokens.scope.split(' ').filter((scope) => scope.trim() !== '');
-      }
-
-      // If no top-level scope field, try to decode JWT access token
-      if (tokens.access_token) {
-        try {
-          // Decode JWT payload (without verification - just for scope extraction)
-          const payloadPart = tokens.access_token.split('.')[1];
-          if (payloadPart) {
-            const payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString());
-            if (payload.scopes && Array.isArray(payload.scopes)) {
-              return payload.scopes;
-            }
-          }
-        } catch (jwtError) {
-          console.warn('Failed to decode JWT for scope extraction:', jwtError);
-        }
-      }
-
-      // If no stored tokens or scope information, return empty array
-      // Don't try to fetch from API as that might require scopes we don't have
-      return [];
+      return await this.tokens.getScopes();
     } catch (error) {
       console.error('Failed to get user scopes:', error);
       return [];
@@ -809,7 +749,7 @@ export class MuralClient {
   }
 
   async debugWorkspacesAPI(): Promise<any> {
-    const accessToken = await this.oauth.getValidAccessToken();
+    const accessToken = await this.tokens.getValidAccessToken();
 
     const url = `${this.baseUrl}/workspaces`;
     const headers = {

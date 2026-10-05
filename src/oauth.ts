@@ -7,6 +7,7 @@ import { URL, URLSearchParams } from 'node:url';
 
 import type {
   AuthorizationParams,
+  MuralTokenProvider,
   OAuthError,
   OAuthTokens,
   PKCEChallenge,
@@ -20,7 +21,7 @@ const TOKEN_FILE_PATH = path.join(os.homedir(), '.mural-mcp-tokens.json');
 // is renewed proactively instead of failing the next API call with a 401.
 const EXPIRY_MARGIN_MS = 30_000;
 
-export class MuralOAuth {
+export class MuralOAuth implements MuralTokenProvider {
   private clientId: string;
   private clientSecret?: string;
   private redirectUri: string;
@@ -365,6 +366,36 @@ export class MuralOAuth {
 
   async getStoredTokens(): Promise<OAuthTokens | null> {
     return await this.loadTokens();
+  }
+
+  /** Scopes of the stored token, read without starting an authentication flow. */
+  async getScopes(): Promise<string[]> {
+    const tokens = await this.loadTokens();
+    if (!tokens) {
+      return [];
+    }
+
+    if (tokens.scope) {
+      return tokens.scope.split(' ').filter((scope) => scope.trim() !== '');
+    }
+
+    // Without a scope field, read the scopes claim of the JWT access token
+    // (decoded without verification: it only feeds a pre-flight check).
+    if (tokens.access_token) {
+      try {
+        const payloadPart = tokens.access_token.split('.')[1];
+        if (payloadPart) {
+          const payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString());
+          if (payload.scopes && Array.isArray(payload.scopes)) {
+            return payload.scopes;
+          }
+        }
+      } catch (jwtError) {
+        console.warn('Failed to decode JWT for scope extraction:', jwtError);
+      }
+    }
+
+    return [];
   }
 
   async clearTokens(): Promise<void> {

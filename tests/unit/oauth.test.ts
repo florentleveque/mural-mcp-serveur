@@ -244,6 +244,66 @@ describe('MuralOAuth', () => {
     });
   });
 
+  describe('getScopes', () => {
+    /** An unsigned JWT whose payload is `payload`, as Mural issues access tokens. */
+    function jwtWith(payload: unknown): string {
+      return `header.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.signature`;
+    }
+
+    function storeTokens(overrides: Record<string, unknown>) {
+      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(mockOAuthTokens(overrides)));
+    }
+
+    it('returns no scope when no token is stored, without starting a flow', async () => {
+      vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'));
+
+      await expect(createOAuth().getScopes()).resolves.toEqual([]);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('splits the scope field and drops blank entries', async () => {
+      storeTokens({ scope: 'murals:read  rooms:read \t ' });
+
+      await expect(createOAuth().getScopes()).resolves.toEqual(['murals:read', 'rooms:read']);
+    });
+
+    it('falls back to the scopes claim of the access token', async () => {
+      storeTokens({ scope: undefined, access_token: jwtWith({ scopes: ['murals:read'] }) });
+
+      await expect(createOAuth().getScopes()).resolves.toEqual(['murals:read']);
+    });
+
+    it('ignores a scopes claim that is not an array', async () => {
+      storeTokens({ scope: undefined, access_token: jwtWith({ scopes: 'murals:read' }) });
+
+      await expect(createOAuth().getScopes()).resolves.toEqual([]);
+    });
+
+    it('returns no scope for an access token without a payload part', async () => {
+      storeTokens({ scope: undefined, access_token: 'opaque-token' });
+
+      await expect(createOAuth().getScopes()).resolves.toEqual([]);
+      expect(console.warn).not.toHaveBeenCalled();
+    });
+
+    it('returns no scope and warns when the payload is not JSON', async () => {
+      storeTokens({ scope: undefined, access_token: 'header.not-json.signature' });
+
+      await expect(createOAuth().getScopes()).resolves.toEqual([]);
+      expect(console.warn).toHaveBeenCalledWith(
+        'Failed to decode JWT for scope extraction:',
+        expect.any(SyntaxError),
+      );
+    });
+
+    it('returns no scope when the stored token has neither scope nor access token', async () => {
+      storeTokens({ scope: undefined, access_token: undefined });
+
+      await expect(createOAuth().getScopes()).resolves.toEqual([]);
+      expect(console.warn).not.toHaveBeenCalled();
+    });
+  });
+
   describe('authenticate', () => {
     it('returns stored tokens when they are still valid, without any network call', async () => {
       const stored = mockOAuthTokens({ expires_at: Date.now() + 60_000 });

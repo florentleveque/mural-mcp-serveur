@@ -38,6 +38,16 @@ export interface OAuthTokens {
   expires_at?: number;
 }
 
+/**
+ * Where MuralClient gets the caller's Mural access token and the scopes granted
+ * to it. The stdio server passes MuralOAuth; a hosted server passes the grant of
+ * the user behind the request.
+ */
+export interface MuralTokenProvider {
+  getValidAccessToken(): Promise<string>;
+  getScopes(): Promise<string[]>;
+}
+
 export interface OAuthError {
   error: string;
   error_description?: string;

@@ -9,6 +9,7 @@ import { z } from 'zod';
 
 import { jsonError, jsonResult } from './mcp-format.js';
 import { MuralClient } from './mural-client.js';
+import { MuralOAuth } from './oauth.js';
 import {
   projectBoards,
   projectRooms,
@@ -54,7 +55,8 @@ function validateEnvironment(): { clientId: string; clientSecret: string; redire
 async function main() {
   const { clientId, clientSecret, redirectUri } = validateEnvironment();
 
-  const muralClient = new MuralClient(clientId, clientSecret, redirectUri);
+  const oauth = new MuralOAuth(clientId, clientSecret, redirectUri);
+  const muralClient = new MuralClient(oauth);
 
   const server = new Server(
     {
@@ -964,7 +966,7 @@ async function main() {
         }
 
         case 'clear-auth': {
-          await muralClient.clearAuthentication();
+          await oauth.clearTokens();
 
           return jsonResult({
             message:

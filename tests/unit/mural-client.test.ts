@@ -2,28 +2,30 @@ import fs from 'node:fs/promises';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MuralApiError, MuralClient } from '../../src/mural-client.js';
-import { mockFetchResponse, mockOAuthTokens } from './helpers.js';
+import { mockFetchResponse } from './helpers.js';
 
-// MuralClient instantiates MuralOAuth and MuralRateLimiter internally,
-// so both modules are mocked at module level. The hoisted vi.fn() handles
-// let each test configure behaviour per call.
+// MuralClient receives its token provider and instantiates MuralRateLimiter
+// internally, so only the rate limiter module is mocked. The hoisted vi.fn()
+// handles let each test configure behaviour per call.
 const mocks = vi.hoisted(() => ({
   getValidAccessToken: vi.fn(),
-  getStoredTokens: vi.fn(),
-  clearTokens: vi.fn(),
+  getScopes: vi.fn(),
   canMakeRequest: vi.fn(),
   consumeRequest: vi.fn(),
   getRateLimitStatus: vi.fn(),
   reset: vi.fn(),
 }));
 
-vi.mock('../../src/oauth.js', () => ({
-  MuralOAuth: class {
-    getValidAccessToken = mocks.getValidAccessToken;
-    getStoredTokens = mocks.getStoredTokens;
-    clearTokens = mocks.clearTokens;
-  },
-}));
+const ALL_SCOPES = [
+  'workspaces:read',
+  'murals:read',
+  'murals:write',
+  'rooms:read',
+  'rooms:write',
+  'templates:read',
+  'templates:write',
+  'identity:read',
+];
 
 vi.mock('../../src/rate-limiter.js', () => ({
   MuralRateLimiter: class {
@@ -43,7 +45,10 @@ vi.mock('fs/promises', () => ({
 }));
 
 function createClient(): MuralClient {
-  return new MuralClient('client-id', 'client-secret');
+  return new MuralClient({
+    getValidAccessToken: mocks.getValidAccessToken,
+    getScopes: mocks.getScopes,
+  });
 }
 
 describe('MuralClient', () => {
@@ -51,7 +56,7 @@ describe('MuralClient', () => {
 
   beforeEach(() => {
     mocks.getValidAccessToken.mockResolvedValue('mock-token');
-    mocks.getStoredTokens.mockResolvedValue(mockOAuthTokens());
+    mocks.getScopes.mockResolvedValue(ALL_SCOPES);
     mocks.canMakeRequest.mockResolvedValue({ allowed: true });
     mocks.consumeRequest.mockResolvedValue(true);
     fetchMock = vi.fn();
@@ -332,7 +337,7 @@ describe('MuralClient', () => {
     });
 
     it('rejects when the OAuth token is missing the required scope', async () => {
-      mocks.getStoredTokens.mockResolvedValue(mockOAuthTokens({ scope: 'workspaces:read' }));
+      mocks.getScopes.mockResolvedValue(['workspaces:read']);
 
       await expect(createClient().getMuralWidgets('m1')).rejects.toThrow(
         'missing required scope: murals:read',
@@ -631,7 +636,7 @@ describe('MuralClient', () => {
       ['createShapes', (c) => c.createShapes('m1', []), 'murals:write'],
       ['updateShape', (c) => c.updateShape('m1', 'w1', {}), 'murals:write'],
     ])('%s refuses without its required scope', async (_name, call, scope) => {
-      mocks.getStoredTokens.mockResolvedValue(mockOAuthTokens({ scope: 'workspaces:read' }));
+      mocks.getScopes.mockResolvedValue(['workspaces:read']);
 
       await expect(call(createClient())).rejects.toThrow(
         `Permission denied: User missing required scope: ${scope}. Available scopes: workspaces:read. Please ensure your Mural OAuth app has '${scope}' scope and re-authenticate.`,
@@ -677,13 +682,43 @@ describe('MuralClient', () => {
     });
   });
 
-  describe('getUserScopes', () => {
-    it('splits the token scope string and drops blank entries', async () => {
-      mocks.getStoredTokens.mockResolvedValue(
-        mockOAuthTokens({ scope: 'murals:read  rooms:read \t ' }),
-      );
+  describe('token provider', () => {
+    it('getUserScopes returns the scopes of the provider', async () => {
+      mocks.getScopes.mockResolvedValue(['murals:read']);
 
-      await expect(createClient().getUserScopes()).resolves.toEqual(['murals:read', 'rooms:read']);
+      await expect(createClient().getUserScopes()).resolves.toEqual(['murals:read']);
+    });
+
+    it('getUserScopes returns no scope and logs when the provider fails', async () => {
+      const failure = new Error('token store unavailable');
+      mocks.getScopes.mockRejectedValue(failure);
+
+      await expect(createClient().getUserScopes()).resolves.toEqual([]);
+      expect(console.error).toHaveBeenCalledWith('Failed to get user scopes:', failure);
+    });
+
+    it('asks the provider for a token on every request, with no shared cache', async () => {
+      mocks.getValidAccessToken.mockResolvedValueOnce('first').mockResolvedValueOnce('second');
+      fetchMock.mockImplementation(() => Promise.resolve(mockFetchResponse(200, { id: 'ws1' })));
+      const client = createClient();
+
+      await Promise.all([client.getWorkspace('ws1'), createClient().getWorkspace('ws1')]);
+
+      const authHeaders = fetchMock.mock.calls.map(
+        ([, options]) =>
+          (options as RequestInit & { headers: Record<string, string> }).headers.Authorization,
+      );
+      expect(new Set(authHeaders)).toEqual(new Set(['Bearer first', 'Bearer second']));
+    });
+
+    it('debugWorkspacesAPI sends the provider token', async () => {
+      fetchMock.mockResolvedValue(mockFetchResponse(200, { value: [] }));
+
+      await createClient().debugWorkspacesAPI();
+
+      const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe('https://app.mural.co/api/public/v1/workspaces');
+      expect((options.headers as Record<string, string>).Authorization).toBe('Bearer mock-token');
     });
   });
 
