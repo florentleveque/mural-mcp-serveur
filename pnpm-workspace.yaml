@@ -1,0 +1,5 @@
+# 5 days. pnpm refuses any version younger than this when it resolves the tree,
+# so a compromised release that gets yanked within that window never lands.
+# Renovate only manages direct dependencies; this gate also covers transitive
+# ones, refreshed by lockfile maintenance (see renovate.json).
+minimumReleaseAge: 7200
