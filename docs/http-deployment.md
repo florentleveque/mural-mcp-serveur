@@ -88,7 +88,9 @@ credentials.
 Vercel protects preview deployments with Vercel Authentication. A browser
 signed in to Vercel as a project member passes; an MCP client needs the
 **Protection Bypass for Automation** secret (project settings, Deployment
-Protection), sent as the `x-vercel-protection-bypass` header. See
+Protection), sent as the `x-vercel-protection-bypass` header on every request,
+OAuth ones included. Claude Code does not send configured headers on its OAuth
+requests: the `mural-preview` skill covers that, see
 [`docs/live-testing.md`](live-testing.md). Production must stay public: check
 that `https://<your host>/healthz` answers without a Vercel session.
 

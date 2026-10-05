@@ -23,26 +23,22 @@ only on an address registered as a redirect URL
 
 ## `.mcp.json`: the preview's tools in a Claude Code session
 
-The repository's `.mcp.json` declares one server, `mural-mcp-dev`, over HTTP
-to `${MURAL_MCP_DEV_URL}/mcp`, with the header
-`x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}`. Claude Code
-expands both from the environment it starts in:
+The repository's `.mcp.json` declares one server, `mural-mcp-dev`: the stable
+address of the branch preview, the bypass header
+`x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}`, and a
+`headersHelper`.
 
-- `MURAL_MCP_DEV_URL`: the branch address above, without a trailing slash.
-- `VERCEL_AUTOMATION_BYPASS_SECRET`: the project's **Protection Bypass for
-  Automation** secret (Vercel project settings, Deployment Protection). Keep it
-  out of the repository and of any output.
-
-Export them in the shell that launches Claude Code (for example from a file
-your shell profile sources, readable only by you), then start Claude Code in
-the repository. Approve `mural-mcp-dev` when asked (or list it in
-`enabledMcpjsonServers` in your `.claude/settings.local.json`), run `/mcp` and
-sign in. The sign-in pages are on the protected preview too: the browser must
-be signed in to Vercel as a member of the project.
-
-Not verified yet: whether Claude Code sends the `.mcp.json` headers on its
-OAuth requests (discovery, registration, token), and not only on MCP requests.
-If the sign-in fails on one of those with a Vercel 401, that is the cause.
+Claude Code sends the `.mcp.json` headers on MCP requests but not on its OAuth
+requests (discovery, registration, token): its own sign-in to a preview ends in
+a Vercel 401 at the client registration. The `mural-preview` skill
+(`.claude/skills/mural-preview/`) works around it. It points `mural-mcp-dev` at
+the current branch's preview, keeps a bypass secret in
+`~/.config/mural-mcp-serveur/dev.env`, and signs in once through the browser;
+its helper then hands Claude Code the bypass header and a bearer token it
+renews by itself. The sign-in pages are on the protected preview too: the
+browser must be signed in to Vercel as a member of the project. Only members of
+the project's Vercel team can use it, and the Hobby plan has no team
+collaboration. Run `/mural-preview`, or follow its `SKILL.md`.
 
 ## Locally, before the sign-in
 

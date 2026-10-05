@@ -74,6 +74,9 @@ overrides the tool schema rule below.
   (`tests/unit/helpers.ts`).
 - Coverage thresholds in `vitest.config.ts` are a ratchet: raise them, never
   lower them.
+- Calling a branch's Vercel preview from Claude Code (`mural-mcp-dev`) goes
+  through the `mural-preview` skill: Claude Code's own sign-in cannot pass the
+  preview's Vercel protection.
 - Inter-LLM functional tests live in `tests/functional/`; drive them with
   `/functional-testing`. Protocol: `tests/functional/README.md`.
 - Mutation testing (StrykerJS) runs over the scope in `stryker.config.mjs`, and
