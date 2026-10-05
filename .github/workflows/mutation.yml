@@ -29,7 +29,7 @@ jobs:
       group: mutation-gate-${{ github.ref }}
       cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 0 # the gate diffs the PR base against this merge commit
           persist-credentials: false # neither job pushes
@@ -60,7 +60,7 @@ jobs:
 
       - name: Upload the mutation report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: mutation-report-pr
           # The baseline is excluded: a copy of the restored cache entry.
@@ -81,7 +81,7 @@ jobs:
       group: mutation-baseline
       cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
 
@@ -109,14 +109,14 @@ jobs:
       - name: Save the refreshed baseline
         # The only writer; skipped on failure so no partial baseline is published.
         if: success()
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: reports/mutation/stryker-incremental.json
           key: ${{ steps.cache.outputs.exact }}
 
       - name: Upload the mutation report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: mutation-report-baseline
           path: |

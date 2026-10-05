@@ -102,6 +102,14 @@ are held for a person because `@stryker-mutator/vitest-runner` carries a local
 patch pinned to its exact version (see
 [`mutation-testing.md`](mutation-testing.md)).
 
+Every action is referenced by its full commit SHA, with the release it matches
+as a trailing comment (`actions/checkout@<sha> # v6.1.0`). A tag such as `v6` is
+mutable: whoever controls the action's repository can move it to other code,
+which would then run with the repository's token. A SHA cannot be moved.
+`helpers:pinGitHubActionDigests` keeps the SHAs current: Renovate follows the
+version in the comment and opens a PR that changes the SHA and the comment
+together, held for review by the rule above.
+
 ## 4. The invariant that fails silently
 
 Release levels are decided by the commit title. A batch is titled

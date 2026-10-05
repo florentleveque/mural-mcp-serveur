@@ -137,6 +137,10 @@ validation.
   less than five days ago. Pick the newest version that clears it; never add a
   `minimumReleaseAgeExclude` entry or turn `minimumReleaseAgeStrict` off. Why:
   `docs/decisions/dependency-automerge.md`.
+- GitHub Actions are referenced by full commit SHA with the exact release as a
+  trailing comment (`uses: actions/checkout@<sha> # v6.1.0`), never by a tag.
+  Resolve a new one with `gh api repos/<owner>/<repo>/git/ref/tags/<tag>`
+  (dereference an annotated tag); Renovate keeps the SHAs current.
 
 ## Secrets and personal data
 
