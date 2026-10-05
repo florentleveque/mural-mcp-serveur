@@ -149,6 +149,57 @@ describe('MuralRateLimiter', () => {
     });
   });
 
+  describe('getRateLimitStatus', () => {
+    it('reports a full refill interval until the next refill right after a refill', async () => {
+      const limiter = new MuralRateLimiter({ persistState: false });
+
+      const status = await limiter.getRateLimitStatus();
+
+      expect(status.user.nextRefillIn).toBe(1000);
+      expect(status.app.nextRefillIn).toBe(60000);
+    });
+
+    it('adds a lastRefill ahead of the clock to the time until the next refill', async () => {
+      // A state file written by a process whose clock runs ahead: refill is
+      // skipped (no time has passed yet) and the wait includes the skew.
+      const now = Date.now();
+      const state = JSON.parse(persistedState(25, now));
+      state.userBucket.lastRefill = now + 300;
+      state.appBucket.lastRefill = now + 300;
+      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(state));
+
+      const status = await new MuralRateLimiter().getRateLimitStatus();
+
+      expect(status.user.nextRefillIn).toBe(1300);
+      expect(status.app.nextRefillIn).toBe(60300);
+    });
+  });
+
+  describe('waitForAvailability', () => {
+    it('resolves true at once when a request is allowed', async () => {
+      const limiter = new MuralRateLimiter({ persistState: false });
+
+      await expect(limiter.waitForAvailability()).resolves.toBe(true);
+    });
+
+    it('waits out the refill delay, then resolves true', async () => {
+      const limiter = new MuralRateLimiter({ userRequestsPerSecond: 1, persistState: false });
+      await limiter.consumeRequest();
+
+      const waiting = limiter.waitForAvailability(5000);
+      await vi.advanceTimersByTimeAsync(1000);
+
+      await expect(Promise.race([waiting, Promise.resolve('still waiting')])).resolves.toBe(true);
+    });
+
+    it('resolves false when the wait would exceed maxWaitMs', async () => {
+      const limiter = new MuralRateLimiter({ userRequestsPerSecond: 1, persistState: false });
+      await limiter.consumeRequest();
+
+      await expect(limiter.waitForAvailability(500)).resolves.toBe(false);
+    });
+  });
+
   describe('state persistence', () => {
     it('saves state after a consumed request when persistState is enabled', async () => {
       const limiter = new MuralRateLimiter();
