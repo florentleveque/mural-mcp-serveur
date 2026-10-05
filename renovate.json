@@ -1,0 +1,111 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":semanticCommitTypeAll(chore)",
+    ":dependencyDashboard"
+  ],
+  "rangeStrategy": "replace",
+  "platformAutomerge": true,
+  "osvVulnerabilityAlerts": true,
+  "minimumReleaseAge": "5 days",
+  "internalChecksFilter": "strict",
+  "lockFileMaintenance": {
+    "description": "Twice a week, because this run is the only remediation path for transitive dependencies and a weekly one left the worst case at 12 days: a fix published just after a Friday run waited for the next Friday. Tuesday and Friday brings the worst case to 9 days and the average to 7, which is most of the gain on offer. A third slot would only buy one more day, and a daily run bottoms out at 6 (the 5-day pnpm gate plus up to a day of waiting) for seven times the CI. Cron rather than the plain-English form, which Renovate has deprecated (@breejs/later) and may remove in a future major: '* 0-7 * * 2,5' means any hour from midnight to 07:59 on Tuesday and Friday, in the timezone below. Renovate treats schedule as a filter on when a branch may be created, not as a trigger, so the window is kept 8 hours wide, well above the 3 to 4 hours Renovate asks for to avoid consistently missing a run.",
+    "enabled": true,
+    "automerge": true,
+    "schedule": ["* 0-7 * * 2,5"],
+    "timezone": "Europe/Paris"
+  },
+  "vulnerabilityAlerts": {
+    "description": "Renovate opens these PRs only for dependencies declared in package.json. It does not manage transitive dependencies, so an advisory on an indirect package never carries this prefix or label: it is remediated by the twice-weekly lockFileMaintenance run, or by a pnpm override when a parent pins an exact version. The 5-day supply-chain delay applies here too, and minimumReleaseAge below is what re-applies it: Renovate's default for this block ships minimumReleaseAge null, the block is mergeable and then applied as `force`, so an explicit value here wins. internalChecksFilter 'flexible' keeps the PR visible in the meantime, with a pending renovate/stability-days check, so a CVE is never hidden while it waits. What actually blocks an early merge is pnpm refusing to resolve a version younger than minimumReleaseAge in pnpm-workspace.yaml (a hard resolution failure, since minimumReleaseAgeStrict defaults to true when the age is set explicitly), so the PR stays red until the version ages out. This block also forces dependencyDashboardApproval false: a major update carrying an advisory gets a PR immediately rather than waiting on the dashboard. groupName is pinned to null because the release pipeline depends on it: a security update swept into one of the weekly batches below would inherit the batch's 'chore(deps)' title and stop cutting a release. Why: docs/decisions/dependency-automerge.md.",
+    "enabled": true,
+    "commitMessagePrefix": "fix(security):",
+    "labels": ["security"],
+    "internalChecksFilter": "flexible",
+    "minimumReleaseAge": "5 days",
+    "groupName": null,
+    "packageRules": [
+      {
+        "matchUpdateTypes": ["patch"],
+        "automerge": true
+      },
+      {
+        "matchUpdateTypes": ["minor", "major"],
+        "addLabels": ["needs-review"]
+      }
+    ]
+  },
+  "packageRules": [
+    {
+      "description": "lockFileMaintenance updates are synthetic lockfile refreshes with no releaseTimestamp, so the inherited 5-day minimumReleaseAge can never be evaluated and Renovate raises a dashboard warning (and, from Renovate 42 on, would stop running lockfile maintenance entirely). Opt them out of the age gate, mirroring Renovate's own security:minimumReleaseAgeNpm preset. The supply-chain delay for the packages bumped here is still enforced natively by pnpm via minimumReleaseAge in pnpm-workspace.yaml.",
+      "matchUpdateTypes": ["lockFileMaintenance"],
+      "minimumReleaseAge": null
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Non-major production updates arrive as one auto-merged batch a week. A batch is a chore commit and cuts no release on its own. What protects this repository from a compromised package is the 5-day minimumReleaseAge above, not a human reading a version number diff; what protects it from a behaviour change is CI. Monday deliberately: lockFileMaintenance runs Tuesday and Friday and both touch pnpm-lock.yaml, so keeping the windows apart avoids a rebase cascade. The dependencies that define the exposed MCP surface are carved back out below. Why: docs/decisions/dependency-automerge.md.",
+      "matchDepTypes": ["dependencies"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "groupName": "dependencies",
+      "schedule": ["* 0-7 * * 1"],
+      "timezone": "Europe/Paris",
+      "automerge": true
+    },
+    {
+      "description": "Non-major dev updates, batched and auto-merged on the same schedule as production, but in their own PR so a broken dev bump does not hold back a production one.",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "groupName": "devDependencies",
+      "schedule": ["* 0-7 * * 1"],
+      "timezone": "Europe/Paris",
+      "automerge": true
+    },
+    {
+      "description": "The @modelcontextprotocol/* packages release in lockstep over one shared @modelcontextprotocol/core, so a bump that moved one without the others would leave two copies of core in the lockfile. Every non-major update of the family therefore travels together in its own group, which also keeps it whole when the rule below pulls its minors out of the weekly batch. Patches stay auto-merged like any other patch; the next rule is what holds the minors.",
+      "matchPackageNames": ["@modelcontextprotocol/*"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "groupName": "mcp sdk",
+      "schedule": ["* 0-7 * * 1"],
+      "timezone": "Europe/Paris",
+      "automerge": true
+    },
+    {
+      "description": "The @modelcontextprotocol/* SDK packages and zod define the JSON Schema this server exposes to agents, so a minor on either can move the tool surface itself, which the tool schema rule in AGENTS.md forbids weakening. Their minors are read by hand. The overrides here are what pull them back out of the batches above: without a schedule their PR could only open on Monday morning, and automerge false is what actually holds them. zod's groupName null takes it out of the production batch; the SDK packages keep the 'mcp sdk' group from the rule above, because they must move together. Patches stay in their batch on purpose: a patch that moved the exposed schema would be an upstream bug, not a normal release. Why: docs/decisions/dependency-automerge.md.",
+      "matchPackageNames": ["@modelcontextprotocol/*", "zod"],
+      "matchUpdateTypes": ["minor"],
+      "schedule": ["at any time"],
+      "automerge": false
+    },
+    {
+      "matchPackageNames": ["zod"],
+      "matchUpdateTypes": ["minor"],
+      "groupName": null
+    },
+    {
+      "description": "Majors of the @modelcontextprotocol/* family move together too, for the same shared-core reason as the 'mcp sdk' rule above; this only groups them, dashboard approval still gates them.",
+      "matchPackageNames": ["@modelcontextprotocol/*"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "mcp sdk"
+    },
+    {
+      "matchDepNames": ["pnpm"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "automerge": true
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "automerge": false
+    },
+    {
+      "description": "@stryker-mutator/vitest-runner carries a local pnpm patch: stryker-js#6214, the fix for the vitest 5 incompatibility (vitest 5 tests testNamePattern against the new fullTestName, whose parts are joined with ' > ', while the runner builds its regex from names joined with a single space, so every mutant scoped to a test filter runs zero tests and is reported Survived, silently). patchedDependencies pins the exact version, so a runner bump leaves the patch unapplied rather than applying it to code it was not written for. Keeping these off automerge is what puts that in front of a person: on a release that carries #6214 the patch should be deleted, not carried further. The safety net is not this rule ('pnpm test:mutation:canary' runs on every PR and goes red if the patch stops working); this rule only makes sure someone decides.",
+      "matchPackageNames": ["@stryker-mutator/vitest-runner", "@stryker-mutator/core"],
+      "automerge": false,
+      "addLabels": ["needs-review"]
+    }
+  ]
+}

@@ -3,7 +3,8 @@
 Parts of this repository's tooling are adapted from
 [fruggr/zendesk-mcp-server](https://github.com/fruggr/zendesk-mcp-server),
 distributed under the MIT License reproduced below. Adapted files carry a header
-pointing here.
+pointing here; formats without comments (`renovate.json`) are named in the
+decision record that explains them, under `docs/decisions/`.
 
 ```text
 MIT License
