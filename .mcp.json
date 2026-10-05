@@ -2,10 +2,7 @@
   "mcpServers": {
     "mural-mcp-dev": {
       "type": "http",
-      "url": "${MURAL_MCP_DEV_URL}/mcp",
-      "headers": {
-        "x-vercel-protection-bypass": "${VERCEL_AUTOMATION_BYPASS_SECRET}"
-      }
+      "url": "https://mural-mcp-serveur-git-feature-remote-http-vercel-goku-ea72.vercel.app/mcp"
     }
   }
 }
