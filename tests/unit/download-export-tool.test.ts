@@ -5,7 +5,7 @@ import { LoopbackTransport, openSession } from './server-harness.js';
 const harness = vi.hoisted(() => ({ transport: undefined as unknown, getExportUrl: vi.fn() }));
 
 vi.mock('dotenv/config', () => ({}));
-vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => ({
+vi.mock('@modelcontextprotocol/server/stdio', () => ({
   StdioServerTransport: class {
     constructor() {
       // biome-ignore lint/correctness/noConstructorReturn: hands src/index.ts the loopback transport.
