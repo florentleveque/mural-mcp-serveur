@@ -1,0 +1,67 @@
+# Adapted from fruggr/zendesk-mcp-server (MIT, see THIRD-PARTY-NOTICES.md).
+# CodeRabbit configuration.
+# Schema reference: https://docs.coderabbit.ai/reference/configuration
+# Repo-wide rules are NOT duplicated here: AGENTS.md (and its CLAUDE.md symlink)
+# are auto-detected as code guidelines and applied on every review
+# (https://docs.coderabbit.ai/knowledge-base/code-guidelines). This file only
+# adds review emphasis CodeRabbit would otherwise under-weight.
+
+language: en-US
+
+reviews:
+  profile: chill
+  high_level_summary: true
+  poem: false
+  review_status: true
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+  path_filters:
+    - '!build/**'
+    - '!node_modules/**'
+    - '!coverage/**'
+    - '!pnpm-lock.yaml'
+    - '!CHANGELOG.md'
+    - '!tests/functional/reports/**'
+  path_instructions:
+    - path: '**/*.ts'
+      instructions: |
+        Comments are optional in this repo and the code is the first
+        explanation. Flag a comment that paraphrases the code under it (the
+        "how"), restates an identifier, or narrates a past change ("renamed
+        from", "used to be", "was moved"): git history holds that. Keep the
+        ones carrying a "why": constraint, trade-off, non-obvious Mural or
+        SDK behaviour, pointer to docs/decisions/.
+        Flag an implementation comment running past ~50 words, and a `/** */`
+        block documenting an exported symbol past ~100: it should shrink to the
+        why, or move to docs/decisions/ with a one-line pointer from the code.
+        Ignore license headers and tool pragmas (Stryker, Biome, ts-expect-error
+        justifications).
+    - path: 'src/index.ts'
+      instructions: &tool-definitions |
+        These files define the MCP tools exposed to the LLM. Check that:
+        - Every exposed JSON Schema keeps what agents depend on: no field
+          dropped, no type loosened, no description content lost (AGENTS.md,
+          "Tool schemas: never weakened").
+        - The input schema validates every input and matches the handler.
+        - The description states the purpose, when to use the tool rather than
+          a sibling, and its side effects; each parameter description adds
+          something over its name and type.
+        - A new, renamed or removed tool is reflected in the "Tools Available"
+          section of README.md.
+        Also flag factual claims about Mural API behaviour that look
+        unverified or wrong (docs/mural-api.md is the reference).
+    - path: 'src/tools/**'
+      instructions: *tool-definitions
+    - path: 'tests/**'
+      instructions: |
+        Tests never call the real Mural API: HTTP goes through the global fetch
+        stub (tests/unit/helpers.ts). Flag any test that would hit the network.
+        Flag fixtures that look like real personal data (names, emails, mural
+        content): the repository is public, fixtures must be synthetic.
+
+knowledge_base:
+  learnings:
+    scope: local

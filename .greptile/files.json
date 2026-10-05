@@ -1,0 +1,22 @@
+{
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "description": "Working rules for AI agents: architecture, testing rules, code style, the comment policy and the tool schema rule this repo enforces. Read it before judging a comment, a test or a tool change: it is the source of truth these reviews are graded against."
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "description": "Submission quality bar and code standards, identical for human and AI authors."
+    },
+    {
+      "path": "docs/mural-api.md",
+      "description": "The Mural public API endpoints and scopes this server calls. Check claims about Mural behaviour against it.",
+      "scope": ["src/**"]
+    },
+    {
+      "path": "docs/decisions/mutation-testing.md",
+      "description": "Why the mutation gate exists and what a surviving mutant means: an assertion is missing or too loose, never a reason to weaken one.",
+      "scope": ["tests/**"]
+    }
+  ]
+}

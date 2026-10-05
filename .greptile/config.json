@@ -1,0 +1,23 @@
+{
+  "instructions": "MCP server exposing Mural to LLM agents. TypeScript strict, Biome, OAuth 2.0 with PKCE. Repository-wide rules live in AGENTS.md, handed to you through .greptile/files.json: prefer them over general conventions when the two disagree. The rules below are only the ones a reviewer most often gets wrong here.",
+  "rules": [
+    {
+      "id": "comment-why-not-how",
+      "rule": "Comments are optional and the code is the first explanation. Flag a comment that paraphrases the code under it, restates an identifier, or narrates a past change ('renamed from', 'used to be'): git history holds that. Keep what carries a why: a constraint, a trade-off, non-obvious Mural or SDK behaviour, a pointer to docs/decisions/. Word caps: ~50 for an implementation comment, ~100 for a /** */ block documenting an exported symbol's contract. License headers and tool pragmas (Stryker, Biome, ts-expect-error) are exempt.",
+      "scope": ["**/*.ts"],
+      "severity": "low"
+    },
+    {
+      "id": "tool-schemas-never-weakened",
+      "rule": "These files define the MCP tools an LLM reads. Flag any change that drops a field from an exposed JSON Schema, loosens a type, or loses what a description said. Check that the input schema validates every input and matches the handler, that each description states purpose, when to use the tool and its side effects, and that each parameter description adds something over its name and type. Flag any factual claim about Mural behaviour that looks unverified.",
+      "scope": ["src/index.ts", "src/tools/**"],
+      "severity": "medium"
+    },
+    {
+      "id": "tests-never-hit-mural",
+      "rule": "Tests never call the real Mural API: HTTP goes through the global fetch stub in tests/unit/helpers.ts. Flag any test that would hit the network, and any fixture that looks like real personal data (names, emails, mural content), since the repository is public.",
+      "scope": ["tests/**"],
+      "severity": "high"
+    }
+  ]
+}

@@ -12,6 +12,12 @@ defend it. Final responsibility for merging belongs to the maintainer; tooling
 catches the mechanical issues, understanding the change is non-negotiable.
 External contributions follow the same standard.
 
+Besides the author-side AI review, pull requests are reviewed by CodeRabbit and
+Greptile, both pointed at this repository's own rules rather than generic ones:
+CodeRabbit auto-detects `AGENTS.md` as a code guideline, Greptile is handed it
+through `.greptile/files.json`. Review emphasis neither would infer lives in
+`.coderabbit.yaml` and `.greptile/config.json`.
+
 Architecture, code style and the rules agents follow live in
 [`AGENTS.md`](AGENTS.md).
 
