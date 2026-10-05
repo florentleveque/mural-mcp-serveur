@@ -1,4 +1,5 @@
 import type { ToolDefinition } from './definitions.js';
+import { muralTools } from './murals.js';
 import { roomTools } from './rooms.js';
 import { templateTools } from './templates.js';
 import { workspaceTools } from './workspaces.js';
@@ -8,4 +9,5 @@ export const toolDefinitions: ToolDefinition[] = [
   ...workspaceTools,
   ...roomTools,
   ...templateTools,
+  ...muralTools,
 ];

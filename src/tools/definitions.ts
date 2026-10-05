@@ -60,3 +60,11 @@ export const CREATES: ToolAnnotations = {
   idempotentHint: false,
   openWorldHint: true,
 };
+
+/** Overwrites or removes existing content; repeating the call changes nothing more. */
+export const OVERWRITES: ToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: true,
+  openWorldHint: true,
+};
