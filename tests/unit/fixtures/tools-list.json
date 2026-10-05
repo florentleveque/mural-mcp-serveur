@@ -532,6 +532,69 @@
     }
   },
   {
+    "name": "get-mural-widgets",
+    "title": "Get Mural Widgets",
+    "description": "Get all widgets from a mural. Compact view keeps: id, type, x, y, width, height, parentId plus per-type content (text, shape, backgroundColor, title, url, filename, points, ...). Pass verbose=true for the full raw widget objects (full style, rotation, authorship, flags, ...).",
+    "inputSchema": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "muralId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The unique identifier of the mural"
+        },
+        "verbose": {
+          "default": false,
+          "description": "If true, return the full raw widget objects instead of the compact view (optional, defaults to false)",
+          "type": "boolean"
+        }
+      },
+      "required": ["muralId"],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "get-mural-widget",
+    "title": "Get Mural Widget",
+    "description": "Get details of a specific widget by its ID (requires both the mural id and the widget id). Compact view keeps: id, type, x, y, width, height, parentId plus per-type content (text, shape, backgroundColor, title, url, filename, points, ...). Pass verbose=true for the full raw widget object (full style, rotation, authorship, flags, ...).",
+    "inputSchema": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "muralId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The unique identifier of the mural"
+        },
+        "widgetId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The unique identifier of the widget"
+        },
+        "verbose": {
+          "default": false,
+          "description": "If true, return the full raw widget object instead of the compact view (optional, defaults to false)",
+          "type": "boolean"
+        }
+      },
+      "required": ["muralId", "widgetId"],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
     "name": "test-connection",
     "description": "Test the connection to Mural API and verify authentication",
     "inputSchema": {
@@ -564,48 +627,6 @@
     "inputSchema": {
       "type": "object",
       "properties": {},
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "get-mural-widgets",
-    "description": "Get all widgets from a mural. Compact view keeps: id, type, x, y, width, height, parentId plus per-type content (text, shape, backgroundColor, title, url, filename, points, ...). Pass verbose=true for the full raw widget objects (full style, rotation, authorship, flags, ...).",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "muralId": {
-          "type": "string",
-          "description": "The unique identifier of the mural"
-        },
-        "verbose": {
-          "type": "boolean",
-          "description": "If true, return the full raw widget objects instead of the compact view (optional, defaults to false)"
-        }
-      },
-      "required": ["muralId"],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "get-mural-widget",
-    "description": "Get details of a specific widget by its ID (requires both the mural id and the widget id). Compact view keeps: id, type, x, y, width, height, parentId plus per-type content (text, shape, backgroundColor, title, url, filename, points, ...). Pass verbose=true for the full raw widget object (full style, rotation, authorship, flags, ...).",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "muralId": {
-          "type": "string",
-          "description": "The unique identifier of the mural"
-        },
-        "widgetId": {
-          "type": "string",
-          "description": "The unique identifier of the widget"
-        },
-        "verbose": {
-          "type": "boolean",
-          "description": "If true, return the full raw widget object instead of the compact view (optional, defaults to false)"
-        }
-      },
-      "required": ["muralId", "widgetId"],
       "additionalProperties": false
     }
   },

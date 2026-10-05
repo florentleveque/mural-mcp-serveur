@@ -124,53 +124,6 @@ async function main() {
             additionalProperties: false,
           },
         },
-        // Content reading tools
-        {
-          name: 'get-mural-widgets',
-          description:
-            'Get all widgets from a mural. Compact view keeps: id, type, x, y, width, height, parentId plus per-type content (text, shape, backgroundColor, title, url, filename, points, ...). Pass verbose=true for the full raw widget objects (full style, rotation, authorship, flags, ...).',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              muralId: {
-                type: 'string',
-                description: 'The unique identifier of the mural',
-              },
-              verbose: {
-                type: 'boolean',
-                description:
-                  'If true, return the full raw widget objects instead of the compact view (optional, defaults to false)',
-              },
-            },
-            required: ['muralId'],
-            additionalProperties: false,
-          },
-        },
-        {
-          name: 'get-mural-widget',
-          description:
-            'Get details of a specific widget by its ID (requires both the mural id and the widget id). Compact view keeps: id, type, x, y, width, height, parentId plus per-type content (text, shape, backgroundColor, title, url, filename, points, ...). Pass verbose=true for the full raw widget object (full style, rotation, authorship, flags, ...).',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              muralId: {
-                type: 'string',
-                description: 'The unique identifier of the mural',
-              },
-              widgetId: {
-                type: 'string',
-                description: 'The unique identifier of the widget',
-              },
-              verbose: {
-                type: 'boolean',
-                description:
-                  'If true, return the full raw widget object instead of the compact view (optional, defaults to false)',
-              },
-            },
-            required: ['muralId', 'widgetId'],
-            additionalProperties: false,
-          },
-        },
         {
           name: 'delete-widget',
           description: 'Permanently delete a widget from a mural by its ID (irreversible)',
@@ -619,40 +572,6 @@ async function main() {
               : null,
             scopes,
             missing,
-          });
-        }
-
-        // Content reading tools
-        case 'get-mural-widgets': {
-          const schema = z.object({
-            muralId: z.string().min(1),
-            verbose: verboseFlag,
-          });
-
-          const { muralId, verbose } = schema.parse(args);
-          const widgets = await muralClient.getMuralWidgets(muralId);
-
-          return jsonResult({
-            widgets: verbose ? widgets : projectWidgets(widgets),
-            count: widgets.length,
-            muralId,
-          });
-        }
-
-        case 'get-mural-widget': {
-          const schema = z.object({
-            muralId: z.string().min(1),
-            widgetId: z.string().min(1),
-            verbose: verboseFlag,
-          });
-
-          const { muralId, widgetId, verbose } = schema.parse(args);
-          const widget = await muralClient.getMuralWidget(muralId, widgetId);
-
-          return jsonResult({
-            widget: verbose ? widget : toCompactWidget(widget),
-            muralId,
-            widgetId,
           });
         }
 
