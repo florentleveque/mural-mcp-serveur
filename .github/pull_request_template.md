@@ -30,7 +30,7 @@ Closes #<n>
 - [ ] No exposed tool schema was weakened (no field dropped, no type loosened, no description content lost)
 - [ ] Documentation is updated where needed (`README.md` "Tools Available" if the tool surface changed)
 - [ ] No real mural content, member name or email appears in the diff, the description or the fixtures
-- [ ] If the change has **MCP-runtime-observable** behaviour (tool surface, transports, auth, resources, prompts, persistence, timing): this PR carries a `## Functional validation plan`, executed by an independent validator whose report is posted as a PR comment. Pure tooling is exempt: the standard gates cover it.
+- [ ] If the change has **MCP-runtime-observable** behaviour (tool surface, transports, auth, resources, prompts, persistence, timing): this PR carries a `## Functional validation plan` (authored with `/functional-validation-plan`), executed by an independent validator (`/run-validation-plan`) whose report is posted as a PR comment. Pure tooling is exempt: the standard gates cover it.
 
 ## Notes for the reviewer (human or AI)
 <!-- Points worth attention, design choices to validate, alternatives ruled out -->

@@ -74,6 +74,8 @@ overrides the tool schema rule below.
   (`tests/unit/helpers.ts`).
 - Coverage thresholds in `vitest.config.ts` are a ratchet: raise them, never
   lower them.
+- Inter-LLM functional tests live in `tests/functional/`; drive them with
+  `/functional-testing`. Protocol: `tests/functional/README.md`.
 - Mutation testing (StrykerJS) runs over the scope in `stryker.config.mjs`, and
   CI fails a PR on a mutant that survived **in a line it changed**
   (`pnpm test:mutation:diff origin/main HEAD` reproduces it). That gate is the
@@ -91,7 +93,9 @@ tool surface, transports, auth, resources, prompts, persistence or timing a
 running server exposes to a client) must also carry a **functional validation
 plan**, written for an *independent* validator (another agent or a human who did
 not write the code). It lives in the PR description; the validator posts their
-report as a PR comment, in English.
+report as a PR comment, in English. Author the plan with the
+`functional-validation-plan` skill; the validator runs it with the
+`run-validation-plan` skill. Don't inline either here.
 
 Independence is about context, not identity: every agent here acts under the
 same GitHub account, so a comment's author says nothing about which session
