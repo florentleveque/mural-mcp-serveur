@@ -171,6 +171,10 @@ fewer words is fine, fixing a false statement is a duty). A **new tool** states
 its purpose, when to use it, its side effects, and describes every parameter,
 and keeps the tool set coherent: consistent naming, no needless duplication.
 
+`tests/unit/fixtures/tools-list.json` holds the exposed `tools/list` answer and
+`tests/unit/tool-schemas.test.ts` compares the server against it. Edit it by
+hand, in the commit that changes the surface, and say so in the message.
+
 ## Documentation maintenance
 
 A change to the tool surface updates the "Tools Available" section of
