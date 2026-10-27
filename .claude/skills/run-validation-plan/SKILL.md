@@ -35,9 +35,15 @@ in the report's `Run by:` line, and let the repository owner judge it.
 ### Your environment is already set up: do NOT re-create it
 
 - **The server under test is the PR's Vercel preview deployment**, mounted as
-  the `mural-mcp-dev` MCP server and already authenticated. Its tools are loaded
-  as `mcp__mural-mcp-dev__*`. Calling them *is* exercising the server: no build,
+  the `mural-mcp-dev` MCP server at the address your session was started with
+  (`MURAL_MCP_DEV_URL`), and already authenticated. Its tools are loaded as
+  `mcp__mural-mcp-dev__*`. Calling them *is* exercising the server: no build,
   no install, no local server, no deployment.
+- **Check the address first.** `printenv MURAL_MCP_DEV_URL` must print the
+  branch address the plan names. Unset or any other address, production
+  included: report `BLOCKED` and stop, since the run would exercise another
+  server. You cannot fix it from inside the session: Claude Code reads the
+  variable when it starts.
 - **Do not go looking for tokens, the Mural client secret or the deployment URL**
   to "set things up". If a tool returns a 401 or a connection error, that is a
   `BLOCKED` finding to report, not a cue to wire auth.

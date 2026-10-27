@@ -36,7 +36,8 @@ CI) cover those. Say so explicitly rather than silently omitting the plan.
 - **Assume a ready environment; don't make the validator build it.** The server
   under test is the **Vercel preview deployment of the PR branch**, mounted in
   the validator's session as the `mural-mcp-dev` MCP server (project
-  `.mcp.json`), already authenticated, its tools loaded as
+  `.mcp.json`, at the address the session was started with in
+  `MURAL_MCP_DEV_URL`), already authenticated, its tools loaded as
   `mcp__mural-mcp-dev__*`. So the plan must NOT ask the validator to:
   - build, install or start a server, or deploy anything;
   - locate or configure credentials, tokens, the Mural client secret or the
@@ -44,8 +45,9 @@ CI) cover those. Say so explicitly rather than silently omitting the plan.
 
   The validator drives the feature by calling the real `mcp__mural-mcp-dev__*`
   tools. A credential or connection error is a `BLOCKED` finding to report,
-  never a setup task to perform. The plan names the commit the preview must be
-  built from (the PR head), so the validator can check it before starting.
+  never a setup task to perform. The plan names the branch address
+  (`MURAL_MCP_DEV_URL`) and the commit the preview must be built from (the PR
+  head), so the validator can check both before starting.
 - **Ground truth from the tools.** Read tools take `verbose: true` and return the
   raw Mural object, so a change that depends on the exact shape of a Mural
   response can be checked through the tools themselves. When even the verbose
