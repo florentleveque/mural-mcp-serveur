@@ -15,7 +15,9 @@ gives the branch a stable address:
 https://mural-mcp-serveur-git-<branch>-goku-ea72.vercel.app
 ```
 
-The address exists only once a push has deployed the branch. A sign-in works
+Vercel shortens it when the part before `.vercel.app` passes 63 characters, so
+take the exact address from the **Preview** link of the Vercel comment on the
+PR. The address exists only once a push has deployed the branch. A sign-in works
 only on an address registered as a redirect URL
 (`<address>/oauth/callback`) in the Mural app.
 
