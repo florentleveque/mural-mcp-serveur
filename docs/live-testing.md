@@ -15,8 +15,6 @@ gives the branch a stable address:
 https://mural-mcp-serveur-git-<branch>-goku-ea72.vercel.app
 ```
 
-For PR #18, that is
-`https://mural-mcp-serveur-git-feature-remote-http-vercel-goku-ea72.vercel.app`.
 The address exists only once a push has deployed the branch. A sign-in works
 only on an address registered as a redirect URL
 (`<address>/oauth/callback`) in the Mural app.
@@ -24,8 +22,14 @@ only on an address registered as a redirect URL
 ## `.mcp.json`: the preview's tools in a Claude Code session
 
 The repository's `.mcp.json` declares one server, `mural-mcp-dev`, over HTTP to
-the branch address above followed by `/mcp`, written out in full: a new branch
-changes it.
+`${MURAL_MCP_DEV_URL:-https://mural-mcp-serveur.vercel.app}/mcp`: production
+by default, a branch preview when `MURAL_MCP_DEV_URL` holds the branch address
+above. Claude Code reads the variable when it starts, so no branch edits the
+file:
+
+```bash
+MURAL_MCP_DEV_URL=https://mural-mcp-serveur-git-<branch>-goku-ea72.vercel.app claude
+```
 
 Vercel protects previews with Vercel Authentication, and Claude Code does not
 send the `.mcp.json` headers on its OAuth requests (discovery, registration,
