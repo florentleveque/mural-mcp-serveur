@@ -19,17 +19,26 @@ The address exists only once a push has deployed the branch. A sign-in works
 only on an address registered as a redirect URL
 (`<address>/oauth/callback`) in the Mural app.
 
-## `.mcp.json`: the preview's tools in a Claude Code session
+## `.mcp.json`: the server's tools in a Claude Code session
 
 The repository's `.mcp.json` declares one server, `mural-mcp-dev`, over HTTP to
-`${MURAL_MCP_DEV_URL:-https://mural-mcp-serveur.vercel.app}/mcp`: production
-by default, a branch preview when `MURAL_MCP_DEV_URL` holds the branch address
-above. Claude Code reads the variable when it starts, so no branch edits the
-file:
+`${MURAL_MCP_DEV_URL}/mcp`. `MURAL_MCP_DEV_URL` is the address of the instance
+to test, without `/mcp`, and has no default: start Claude Code with it set.
 
 ```bash
 MURAL_MCP_DEV_URL=https://mural-mcp-serveur-git-<branch>-goku-ea72.vercel.app claude
 ```
+
+- Without it, Claude Code reports `Missing environment variables` for
+  `.mcp.json`, and `mural-mcp-dev` fails to connect.
+- Claude Code reads it once, at start: to change the address, restart Claude
+  Code.
+- In the session, `printenv MURAL_MCP_DEV_URL` shows the address in use;
+  `claude mcp get mural-mcp-dev` prints it unexpanded.
+- Any instance of the server works: a branch preview of this project (the
+  repository owner registers its redirect URL in the Mural app and exempts its
+  address, below), production (`https://mural-mcp-serveur.vercel.app`), or
+  your own deployment ([`docs/http-deployment.md`](http-deployment.md)).
 
 Vercel protects previews with Vercel Authentication, and Claude Code does not
 send the `.mcp.json` headers on its OAuth requests (discovery, registration,
@@ -42,7 +51,8 @@ project's Deployment Protection settings, or through
 `{"override": {"scope": "alias-protection-override", "action": "create"}}`
 (`"revoke"` removes it).
 
-Start Claude Code in the repository, approve `mural-mcp-dev` when asked (or list
+Start Claude Code in the repository with `MURAL_MCP_DEV_URL` set, approve
+`mural-mcp-dev` when asked (or list
 it in `enabledMcpjsonServers` in your `.claude/settings.local.json`), run `/mcp`
 and sign in.
 

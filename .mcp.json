@@ -2,7 +2,7 @@
   "mcpServers": {
     "mural-mcp-dev": {
       "type": "http",
-      "url": "${MURAL_MCP_DEV_URL:-https://mural-mcp-serveur.vercel.app}/mcp"
+      "url": "${MURAL_MCP_DEV_URL}/mcp"
     }
   }
 }
