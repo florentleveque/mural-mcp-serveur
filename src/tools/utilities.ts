@@ -1,18 +1,8 @@
 import { z } from 'zod';
 
+import { MURAL_SCOPES } from '../auth/mural-upstream.js';
 import { jsonResult } from '../mcp-format.js';
 import { defineTool, READ_ONLY, type ToolDefinition } from './definitions.js';
-
-const EXPECTED_SCOPES = [
-  'workspaces:read',
-  'rooms:read',
-  'rooms:write',
-  'murals:read',
-  'murals:write',
-  'templates:read',
-  'templates:write',
-  'identity:read',
-];
 
 export const utilityTools: ToolDefinition[] = [
   defineTool({
@@ -91,7 +81,7 @@ export const utilityTools: ToolDefinition[] = [
             }
           : null,
         scopes,
-        missing: EXPECTED_SCOPES.filter((scope) => !scopes.includes(scope)),
+        missing: MURAL_SCOPES.filter((scope) => !scopes.includes(scope)),
       });
     },
   }),
