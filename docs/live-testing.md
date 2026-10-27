@@ -23,11 +23,29 @@ only on an address registered as a redirect URL
 
 The repository's `.mcp.json` declares one server, `mural-mcp-dev`, over HTTP to
 `${MURAL_MCP_DEV_URL}/mcp`. `MURAL_MCP_DEV_URL` is the address of the instance
-to test, without `/mcp`, and has no default: start Claude Code with it set.
+to test, without `/mcp`, and has no default: start Claude Code with it set,
+either for one session, from the shell:
 
 ```bash
 MURAL_MCP_DEV_URL=https://mural-mcp-serveur-git-<branch>-goku-ea72.vercel.app claude
 ```
+
+or for every session in the repository, in the `env` key of your
+`.claude/settings.local.json` (Claude Code applies it once you trust the
+folder):
+
+```json
+{
+  "env": {
+    "MURAL_MCP_DEV_URL": "https://mural-mcp-serveur-git-<branch>-goku-ea72.vercel.app"
+  }
+}
+```
+
+That file is personal: never commit it. The repository's `.gitignore` does not
+list it; Claude Code adds it to your global git excludes only when it writes the
+file itself. The address stays there from one branch to the next: update it
+when you switch.
 
 - Without it, Claude Code reports `Missing environment variables` for
   `.mcp.json`, and `mural-mcp-dev` fails to connect.
