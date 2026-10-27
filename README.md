@@ -67,8 +67,8 @@ with your own Mural OAuth app. That npm package is deprecated: from 2.0, the
 server is hosted only.
 
 1. Remove the old entry from your client. In Claude Code:
-   `claude mcp remove mural`, with the name you gave it (add `-s user` or
-   `-s project` if it exists in several scopes).
+   `claude mcp remove mural`, with the name you gave it (add `-s local`,
+   `-s user` or `-s project` if it exists in several scopes).
 2. Connect to the hosted server as described above.
 3. Delete `~/.mural-mcp-tokens.json`, where 1.x kept your Mural tokens. The
    `MURAL_CLIENT_ID` and `MURAL_CLIENT_SECRET` of your own Mural app are no
