@@ -75,6 +75,10 @@ overrides the tool schema rule below.
   lower them.
 - Inter-LLM functional tests live in `tests/functional/`; drive them with
   `/functional-testing`. Protocol: `tests/functional/README.md`.
+- Live tests reach a deployed instance through `MURAL_MCP_DEV_URL`
+  (`docs/live-testing.md`). Never commit `.claude/settings.local.json`, where
+  that address may be set: it is personal, and the repository's `.gitignore`
+  does not list it.
 - Mutation testing (StrykerJS) runs over the scope in `stryker.config.mjs`, and
   CI fails a PR on a mutant that survived **in a line it changed**
   (`pnpm test:mutation:diff origin/main HEAD` reproduces it). That gate is the
