@@ -26,8 +26,7 @@ issue for the delta.
 
 **Branch name**: `<issue>-<kebab-slug>`, issue number first, no type prefix
 (`17-remote-http-server`, not `feat/17-...`). Short, lowercase, hyphens only,
-about the change rather than the file. `feature/remote-http-vercel` (PR #18)
-predates this rule and is an accepted exception; don't imitate it.
+about the change rather than the file.
 
 ## Architecture
 
