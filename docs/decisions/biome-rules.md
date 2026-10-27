@@ -28,12 +28,6 @@ explicitly, minus the rules listed below. The overrides are the same:
 | `tests/**`, `scripts/**` | `noExcessiveCognitiveComplexity` | Nested `describe`/`it` callbacks trip it structurally. |
 | `tests/**`, `scripts/**` | `useTopLevelRegex` | A regex in a test or a one-shot script has no hot path. |
 | `**/*.config.ts`, `**/*.config.mts`, `**/*.config.mjs` | `noDefaultExport` | Tool config files must default-export. |
-| `scripts/**` | `noConsole` | Scripts are command-line tools: printing to stdout is their output, not a protocol leak. |
-
-One rule is added on top of the Zendesk set: `suspicious/noConsole`, allowing
-only `console.error` and `console.warn`. It carries over the ESLint `no-console`
-rule this repository already enforced: on the stdio transport, stdout carries
-the JSON-RPC protocol, so any other console call corrupts it.
 
 ## Off until the tree is clean for them
 

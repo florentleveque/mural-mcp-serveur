@@ -121,8 +121,6 @@ validation.
   stays green in the same commit. Which rules are on and why each other one is
   off: `docs/decisions/biome-rules.md`. `nursery` and the `types` domain are
   closed by policy.
-- Only `console.error` and `console.warn` in `src/`: on the stdio transport,
-  stdout carries the JSON-RPC protocol (`noConsole` enforces it).
 - **Comments explain the why, never the how.** Write one only for what the code
   cannot say: a constraint, a trade-off, a non-obvious API behaviour, a pointer
   to `docs/decisions/`. A comment that paraphrases the line below it is noise.

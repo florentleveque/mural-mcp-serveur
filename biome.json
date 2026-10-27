@@ -73,13 +73,7 @@
         "useNumberToFixedDigitsArgument": "error",
         "useStaticResponseMethods": "error",
         "noExplicitAny": "off",
-        "noImplicitAnyLet": "off",
-        "noConsole": {
-          "level": "error",
-          "options": {
-            "allow": ["error", "warn"]
-          }
-        }
+        "noImplicitAnyLet": "off"
       },
       "style": {
         "useErrorCause": "off",
@@ -149,16 +143,6 @@
           },
           "performance": {
             "useTopLevelRegex": "off"
-          }
-        }
-      }
-    },
-    {
-      "includes": ["scripts/**"],
-      "linter": {
-        "rules": {
-          "suspicious": {
-            "noConsole": "off"
           }
         }
       }
