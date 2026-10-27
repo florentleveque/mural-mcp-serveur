@@ -37,6 +37,13 @@ pnpm check && pnpm typecheck && pnpm test && pnpm build
 dependency version published less than five days ago (`minimumReleaseAge` in
 `pnpm-workspace.yaml`); pick an older version rather than working around it.
 
+To try a change against the real Mural API, start Claude Code in the repository
+with `MURAL_MCP_DEV_URL` set to a deployed instance of the server, for example
+your own Vercel deployment: the project `.mcp.json` mounts that instance as the
+`mural-mcp-dev` MCP server, and has no address without the variable. A real
+sign-in cannot run on `localhost`. How to:
+[`docs/live-testing.md`](docs/live-testing.md).
+
 ## Before you start: avoid duplicate work
 
 1. **Check the issue is still live.** Closed as *completed* means it already

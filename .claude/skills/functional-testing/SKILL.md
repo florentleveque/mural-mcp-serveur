@@ -9,7 +9,8 @@ description: Drive the inter-LLM functional test harness for this MCP server. Us
 
 You are the **leading LLM** in a two-LLM functional test loop. The other LLM
 runs in a Claude Code session connected to the server under test (the
-`mural-mcp-dev` entry: the PR's Vercel preview), executes scenarios against it,
+`mural-mcp-dev` entry: the PR's Vercel preview, at the address the session was
+started with in `MURAL_MCP_DEV_URL`), executes scenarios against it,
 and pushes its artifacts. You drive the loop without ever calling the server
 yourself. Protocol and file layout: `tests/functional/README.md`.
 
@@ -39,11 +40,16 @@ yourself. Protocol and file layout: `tests/functional/README.md`.
    prompt.
 4. **Produce a bridge prompt** for the user to paste into the executing session,
    translated into the user's language (`AGENTS.md`: chat follows the user,
-   GitHub is English):
+   GitHub is English). Tell the user to start that session with
+   `MURAL_MCP_DEV_URL` set to the branch address (`docs/live-testing.md`):
 
    ```text
    You are in the mural-mcp-serveur repository; the local branch must be up to
    date with origin/<branch-from-STATE>.
+   First run printenv MURAL_MCP_DEV_URL: it must print <branch address>.
+   Then run claude mcp get mural-mcp-dev: it must show
+   "Scope: Project config".
+   Otherwise stop and tell me.
    Read tests/functional/scenarios/<slug>/spec.md and follow its instructions
    strictly.
    Do NOT read expected.md: it holds the verdict criteria, and seeing it would

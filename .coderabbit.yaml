@@ -55,10 +55,16 @@ reviews:
         unverified or wrong (docs/mural-api.md is the reference).
     - path: 'tests/**'
       instructions: |
-        Tests never call the real Mural API: HTTP goes through the global fetch
-        stub (tests/unit/helpers.ts). Flag any test that would hit the network.
         Flag fixtures that look like real personal data (names, emails, mural
         content): the repository is public, fixtures must be synthetic.
+        tests/functional/ is the inter-LLM harness: it drives a deployed server,
+        and through it the real Mural API, on purpose
+        (tests/functional/README.md). Do not flag that.
+    - path: 'tests/unit/**'
+      instructions: |
+        Unit tests never call the real Mural API: HTTP goes through the global
+        fetch stub (tests/unit/helpers.ts). Flag any test that would hit the
+        network.
 
 knowledge_base:
   learnings:
