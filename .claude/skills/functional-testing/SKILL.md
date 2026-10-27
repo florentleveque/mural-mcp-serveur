@@ -47,6 +47,8 @@ yourself. Protocol and file layout: `tests/functional/README.md`.
    You are in the mural-mcp-serveur repository; the local branch must be up to
    date with origin/<branch-from-STATE>.
    First run printenv MURAL_MCP_DEV_URL: it must print <branch address>.
+   Then run claude mcp get mural-mcp-dev: it must show
+   "Scope: Project config".
    Otherwise stop and tell me.
    Read tests/functional/scenarios/<slug>/spec.md and follow its instructions
    strictly.

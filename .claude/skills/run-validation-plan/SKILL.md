@@ -40,10 +40,12 @@ in the report's `Run by:` line, and let the repository owner judge it.
   `mcp__mural-mcp-dev__*`. Calling them *is* exercising the server: no build,
   no install, no local server, no deployment.
 - **Check the address first.** `printenv MURAL_MCP_DEV_URL` must print the
-  branch address the plan names. Unset or any other address, production
-  included: report `BLOCKED` and stop, since the run would exercise another
-  server. You cannot fix it from inside the session: Claude Code reads the
-  variable when it starts.
+  branch address the plan names, and `claude mcp get mural-mcp-dev` must show
+  `Scope: Project config`: a local-scope `mural-mcp-dev` takes precedence over
+  the project `.mcp.json`, whatever the variable says. Variable unset, any
+  other address (production included) or any other scope: report
+  `BLOCKED` and stop, since the run would exercise another server. You cannot
+  fix it from inside the session: Claude Code reads both when it starts.
 - **Do not go looking for tokens, the Mural client secret or the deployment URL**
   to "set things up". If a tool returns a 401 or a connection error, that is a
   `BLOCKED` finding to report, not a cue to wire auth.

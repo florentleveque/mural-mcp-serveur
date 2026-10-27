@@ -31,8 +31,10 @@ The leading LLM follows the `functional-testing` skill (`/functional-testing`).
 The PR's Vercel preview deployment, reached through the `mural-mcp-dev` entry of
 the project `.mcp.json` and authenticated through its OAuth flow in the
 executor's session. The user starts that session with `MURAL_MCP_DEV_URL` set
-to the PR branch address (`docs/live-testing.md`), and the executor checks it
-with `printenv MURAL_MCP_DEV_URL` before the first scenario. Each `spec.md`
+to the PR branch address (`docs/live-testing.md`). Before the first scenario,
+the executor checks that `printenv MURAL_MCP_DEV_URL` prints that address and
+that `claude mcp get mural-mcp-dev` shows `Scope: Project config` (a
+local-scope entry of the same name would take precedence). Each `spec.md`
 states which tools it calls and what to capture; the executor never builds or
 starts a server.
 

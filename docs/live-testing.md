@@ -53,6 +53,9 @@ when you switch.
   Code.
 - In the session, `printenv MURAL_MCP_DEV_URL` shows the address in use;
   `claude mcp get mural-mcp-dev` prints it unexpanded.
+- A `mural-mcp-dev` you declared in your local scope takes precedence over
+  `.mcp.json`, whatever the variable says: `claude mcp get mural-mcp-dev` must
+  show `Scope: Project config`.
 - Any instance of the server works: a branch preview of this project (the
   repository owner registers its redirect URL in the Mural app and exempts its
   address, below), production (`https://mural-mcp-serveur.vercel.app`), or
