@@ -1,3 +1,13 @@
+## [2.0.0](https://github.com/florentleveque/mural-mcp-serveur/compare/v1.3.1...v2.0.0) (2026-10-27)
+
+### ⚠ BREAKING CHANGES
+
+* serve the MCP over HTTP on Vercel with server-side Mural OAuth (#18)
+
+### Features
+
+* serve the MCP over HTTP on Vercel with server-side Mural OAuth ([#18](https://github.com/florentleveque/mural-mcp-serveur/issues/18)) ([11c1a74](https://github.com/florentleveque/mural-mcp-serveur/commit/11c1a742da02ea986d511c2b1191c7a8557b0eee)), closes [#17](https://github.com/florentleveque/mural-mcp-serveur/issues/17) [#14](https://github.com/florentleveque/mural-mcp-serveur/issues/14)
+
 ## [1.3.1](https://github.com/florentleveque/mural-mcp-serveur/compare/v1.3.0...v1.3.1) (2026-10-03)
 
 ### Bug Fixes
