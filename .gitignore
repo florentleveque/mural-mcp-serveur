@@ -12,9 +12,6 @@ dist/
 # Authentication tokens
 .mural-mcp-tokens.json
 
-# Local MCP server registration (machine-specific absolute path)
-.mcp.json
-
 # IDE
 .vscode/
 .idea/
@@ -47,3 +44,7 @@ coverage/
 
 # Claude IDE settings
 .claude/package-lock.json
+
+# Mutation testing: anchored, so a future `tests/functional/reports/` stays tracked.
+/reports/
+/.stryker-tmp/

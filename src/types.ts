@@ -29,86 +29,15 @@ export interface MuralWorkspace {
   sharingSettings?: Record<string, unknown>;
 }
 
-export interface OAuthTokens {
-  access_token: string;
-  refresh_token?: string;
-  token_type: string;
-  expires_in: number;
-  scope?: string;
-  expires_at?: number;
-}
-
-export interface OAuthError {
-  error: string;
-  error_description?: string;
-}
-
-export interface PKCEChallenge {
-  codeVerifier: string;
-  codeChallenge: string;
-  codeChallengeMethod: string;
-}
-
-export interface AuthorizationParams {
-  client_id: string;
-  redirect_uri: string;
-  scope: string;
-  response_type: string;
-  code_challenge: string;
-  code_challenge_method: string;
-  state?: string;
-}
-
-export interface TokenExchangeParams {
-  client_id: string;
-  client_secret?: string;
-  code: string;
-  code_verifier: string;
-  grant_type: string;
-  redirect_uri: string;
-}
-
-export interface RefreshTokenParams {
-  client_id: string;
-  client_secret?: string;
-  refresh_token: string;
-  grant_type: string;
-}
-
-export interface RateLimitBucket {
-  capacity: number;
-  tokens: number;
-  refillRate: number;
-  lastRefill: number;
-  refillIntervalMs: number;
-}
-
-export interface RateLimitState {
-  userBucket: RateLimitBucket;
-  appBucket: RateLimitBucket;
-  lastUpdated: number;
-}
-
-export interface RateLimitConfig {
-  userRequestsPerSecond: number;
-  appRequestsPerMinute: number;
-  persistState: boolean;
-}
-
-export interface RateLimitStatus {
-  user: {
-    tokensRemaining: number;
-    capacity: number;
-    refillRate: number;
-    nextRefillIn: number;
-  };
-  app: {
-    tokensRemaining: number;
-    capacity: number;
-    refillRate: number;
-    nextRefillIn: number;
-  };
-  lastUpdated: number;
+/**
+ * Where MuralClient gets the caller's Mural access token and the scopes granted
+ * to it: the Mural token the request's access token carries (src/app.ts).
+ */
+export interface MuralTokenProvider {
+  getValidAccessToken(): Promise<string>;
+  getScopes(): Promise<string[]>;
+  /** Mural answered 401 to `token`: never hand it out again. */
+  invalidateAccessToken(token: string): Promise<void>;
 }
 
 export interface MuralBoard {
@@ -127,7 +56,10 @@ export interface MuralBoard {
   thumbnailUrl?: string;
   _canvasLink?: string;
   sharingSettings?: { link?: string } & Record<string, unknown>;
-  visitorsSettings?: { link?: string; visitors?: string; workspaceMembers?: string } & Record<string, unknown>;
+  visitorsSettings?: { link?: string; visitors?: string; workspaceMembers?: string } & Record<
+    string,
+    unknown
+  >;
 }
 
 // Status payload of an async mural export job (GET /murals/{id}/exports/{exportId}).

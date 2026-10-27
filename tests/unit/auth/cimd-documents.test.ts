@@ -1,0 +1,296 @@
+// Adapted from fruggr/zendesk-mcp-server (MIT, see THIRD-PARTY-NOTICES.md).
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  CIMD_FETCH_HINT,
+  type CimdDocuments,
+  type CimdLastGood,
+  createCimdDocuments,
+  type GrantedClient,
+  LAST_GOOD_TTL_S,
+} from '../../../src/auth/cimd-documents.js';
+import { deriveKeyRing } from '../../../src/auth/keys.js';
+import type { Logger } from '../../../src/auth/log.js';
+import { createRedisStore } from '../../../src/auth/record-store.js';
+import { createSealedCollection, type SealedCollection } from '../../../src/auth/store.js';
+import type { Fetch } from '../../../src/auth/trusted-clients.js';
+import { createFakeRedis } from './fake-redis.js';
+
+const URL_ = 'https://claude.ai/oauth/claude-code-client-metadata';
+const DOC = { client_id: URL_, client_name: 'Claude Code', redirect_uris: ['http://localhost/cb'] };
+const NATIVE = { ...DOC, application_type: 'native' };
+const NOW = Date.UTC(2026, 9, 4, 12);
+
+const memoryLastGood = () => {
+  const records = new Map<string, { value: CimdLastGood; ttl: number | undefined }>();
+  const lastGood: SealedCollection<CimdLastGood> = {
+    get: async (id) => records.get(id)?.value,
+    take: async () => undefined,
+    set: async (id, value, ttl) => {
+      records.set(id, { value, ttl });
+    },
+    delete: async (id) => {
+      records.delete(id);
+    },
+  };
+  return { lastGood, records };
+};
+
+const recordingLogger = () => {
+  const events: [string, string, unknown][] = [];
+  const record =
+    (level: string) =>
+    (event: string, fields?: unknown): void => {
+      events.push([level, event, fields]);
+    };
+  const logger: Logger = { warn: record('warn'), error: record('error') };
+  return { logger, events };
+};
+
+// A fetch answering each step in turn, then the last one forever.
+const sequence = (...steps: (() => Response)[]): Fetch => {
+  let index = 0;
+  return async () => (steps[Math.min(index++, steps.length - 1)] as () => Response)();
+};
+const ok = () => Response.json(DOC, { headers: { 'cache-control': 'max-age=300' } });
+const status = (code: number) => () => new Response('blocked', { status: code });
+const networkError = () => {
+  throw new TypeError('fetch failed', { cause: new Error('getaddrinfo ENOTFOUND claude.ai') });
+};
+
+const setUp = (base: Fetch, lastGood = memoryLastGood().lastGood) => {
+  const { logger, events } = recordingLogger();
+  return { cimd: createCimdDocuments(base, { lastGood, logger }), events };
+};
+
+// The client oidc-provider builds from a document it accepted.
+const clientOf = (document: Record<string, unknown>, cimd = true): GrantedClient => ({
+  clientId: String(document['client_id']),
+  ...(cimd && { clientIdMetadataDocument: true }),
+  metadata: () => document,
+});
+
+// What oidc-provider does on a sign-in: fetch the document, issue a token.
+const signIn = async (cimd: CimdDocuments) => {
+  const res = await cimd.fetch(URL_, {});
+  await cimd.granted(clientOf(NATIVE));
+  return res;
+};
+
+const failed = (fields: Record<string, unknown>) => [
+  'warn',
+  'oauth_client_fetch_failed',
+  { url: URL_, ...fields, hint: CIMD_FETCH_HINT },
+];
+
+beforeEach(() => vi.useFakeTimers({ now: NOW }));
+afterEach(() => vi.useRealTimers());
+
+describe('createCimdDocuments: keeping a copy', () => {
+  it('keeps the validated document when a token is issued, for seven days', async () => {
+    const { lastGood, records } = memoryLastGood();
+    const { cimd } = setUp(sequence(ok), lastGood);
+    const res = await signIn(cimd);
+    expect(await res.json()).toEqual(NATIVE);
+    expect(res.headers.get('cache-control')).toBe('max-age=300');
+    expect(records.get(URL_)).toEqual({ value: { document: NATIVE, fetchedAt: NOW }, ttl: 604800 });
+    expect(LAST_GOOD_TTL_S).toBe(7 * 24 * 3600);
+  });
+
+  it('keeps nothing for a client registered otherwise (DCR)', async () => {
+    const { lastGood, records } = memoryLastGood();
+    const { cimd } = setUp(sequence(ok), lastGood);
+    await cimd.granted(clientOf({ client_id: 'dcr-client', redirect_uris: [] }, false));
+    expect(records.size).toBe(0);
+  });
+
+  it('never renews a copy with a client the copy itself built', async () => {
+    const { lastGood, records } = memoryLastGood();
+    const { cimd } = setUp(sequence(ok, status(403), ok), lastGood);
+    await signIn(cimd);
+    vi.advanceTimersByTime(3600 * 1000);
+    await cimd.fetch(URL_, {});
+    await cimd.granted(clientOf(NATIVE));
+    expect(records.get(URL_)?.value.fetchedAt).toBe(NOW);
+    // Live again: the next token renews it.
+    await cimd.fetch(URL_, {});
+    await cimd.granted(clientOf(NATIVE));
+    expect(records.get(URL_)?.value.fetchedAt).toBe(NOW + 3600 * 1000);
+  });
+
+  it('keeps the good copy when the host serves a document oidc-provider rejects', async () => {
+    const { lastGood, records } = memoryLastGood();
+    const rejected = { ...DOC, client_secret: 'x' };
+    const { cimd } = setUp(
+      sequence(ok, () => Response.json(rejected), status(403)),
+      lastGood,
+    );
+    await signIn(cimd);
+    // The library rejects it: no client, no token.
+    await cimd.fetch(URL_, {});
+    // The next fetch fails, the copy is served, and the client built from it gets a token.
+    await cimd.fetch(URL_, {});
+    await cimd.granted(clientOf(NATIVE));
+    expect(records.get(URL_)?.value.document).toEqual(NATIVE);
+  });
+
+  it('logs a failure to keep the copy, and carries on', async () => {
+    const lastGood: SealedCollection<CimdLastGood> = {
+      get: async () => undefined,
+      take: async () => undefined,
+      set: async () => {
+        throw new Error('ENOSPC');
+      },
+      delete: async () => undefined,
+    };
+    const { cimd, events } = setUp(sequence(ok), lastGood);
+    expect(await (await signIn(cimd)).json()).toEqual(NATIVE);
+    expect(events).toEqual([
+      ['warn', 'oauth_cimd_last_good_store_failed', { url: URL_, error: 'ENOSPC' }],
+    ]);
+  });
+});
+
+describe('createCimdDocuments: serving the copy', () => {
+  it.each([403, 408, 429, 500, 502, 503])('serves the copy on a %i, and says so', async (code) => {
+    const { cimd, events } = setUp(sequence(ok, status(code)));
+    await signIn(cimd);
+    vi.advanceTimersByTime(3600 * 1000);
+    const res = await cimd.fetch(URL_, {});
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('application/json');
+    expect(res.headers.get('cache-control')).toBe('max-age=60');
+    expect(await res.json()).toEqual(NATIVE);
+    expect(events).toEqual([failed({ status: code, fallback: 'last_good', ageS: 3600 })]);
+  });
+
+  it('releases the failed response it does not hand on', async () => {
+    const failure = new Response('blocked', { status: 403 });
+    const cancel = vi.spyOn(failure.body as ReadableStream, 'cancel');
+    const { cimd } = setUp(sequence(ok, () => failure));
+    await signIn(cimd);
+    await cimd.fetch(URL_, {});
+    expect(cancel).toHaveBeenCalled();
+  });
+
+  it('serves the copy in place of a failure without a body', async () => {
+    const { cimd } = setUp(sequence(ok, () => new Response(null, { status: 503 })));
+    await signIn(cimd);
+    expect(await (await cimd.fetch(URL_, {})).json()).toEqual(NATIVE);
+  });
+
+  it('serves the copy on a network error, naming its cause', async () => {
+    const { cimd, events } = setUp(sequence(ok, networkError));
+    await signIn(cimd);
+    expect(await (await cimd.fetch(URL_, {})).json()).toEqual(NATIVE);
+    expect(events).toEqual([
+      failed({
+        error: 'fetch failed: getaddrinfo ENOTFOUND claude.ai',
+        fallback: 'last_good',
+        ageS: 0,
+      }),
+    ]);
+  });
+
+  it('serves the copy when the body cannot be read', async () => {
+    const stalled = () =>
+      new Response(
+        new ReadableStream({
+          pull: () => {
+            throw new Error('aborted');
+          },
+        }),
+      );
+    const { cimd, events } = setUp(sequence(ok, stalled));
+    await signIn(cimd);
+    expect(await (await cimd.fetch(URL_, {})).json()).toEqual(NATIVE);
+    expect(events).toEqual([failed({ error: 'aborted', fallback: 'last_good', ageS: 0 })]);
+  });
+
+  it('serves the copy in place of a 200 that is not the document', async () => {
+    const challenge = new Response('<html>Just a moment...</html>', { status: 200 });
+    const { cimd, events } = setUp(sequence(ok, () => challenge));
+    await signIn(cimd);
+    expect(await (await cimd.fetch(URL_, {})).json()).toEqual(NATIVE);
+    expect(events).toEqual([
+      failed({ status: 200, error: 'not a client document', fallback: 'last_good', ageS: 0 }),
+    ]);
+  });
+
+  it('hands a non-document on as it came where no copy was kept', async () => {
+    const { cimd, events } = setUp(sequence(() => Response.json({ keys: [{ kty: 'RSA' }] })));
+    expect(await (await cimd.fetch('https://x/jwks', {})).json()).toEqual({
+      keys: [{ kty: 'RSA' }],
+    });
+    expect(events).toEqual([]);
+  });
+
+  it.each([
+    ['another client', () => Response.json({ ...DOC, client_id: 'https://evil.example/doc' })],
+    ['a 203', () => Response.json(DOC, { status: 203 })],
+  ])('serves the copy in place of a document for %s', async (_, response) => {
+    const { cimd, events } = setUp(sequence(ok, response));
+    await signIn(cimd);
+    expect(await (await cimd.fetch(URL_, {})).json()).toEqual(NATIVE);
+    expect(events).toHaveLength(1);
+  });
+
+  it.each([404, 410, 401, 400, 302])('never falls back on a %i, and logs nothing', async (code) => {
+    const failure = new Response('gone', { status: code });
+    const { cimd, events } = setUp(sequence(ok, () => failure));
+    await signIn(cimd);
+    expect(await cimd.fetch(URL_, {})).toBe(failure);
+    expect(events).toEqual([]);
+  });
+
+  it('hands the failure on when no copy was kept', async () => {
+    const failure = new Response('blocked', { status: 403 });
+    const { cimd, events } = setUp(async () => failure);
+    expect(await cimd.fetch(URL_, {})).toBe(failure);
+    const { cimd: offline } = setUp(networkError);
+    await expect(offline.fetch(URL_, {})).rejects.toThrow('fetch failed');
+    const { cimd: odd, events: oddEvents } = setUp(() => Promise.reject('odd'));
+    await expect(odd.fetch(URL_, {})).rejects.toBe('odd');
+    expect(events).toEqual([failed({ status: 403, fallback: 'none' })]);
+    expect(oddEvents).toEqual([failed({ error: 'odd', fallback: 'none' })]);
+  });
+
+  it('hands the failure on when reading the copy fails', async () => {
+    const lastGood: SealedCollection<CimdLastGood> = {
+      get: async () => {
+        throw new Error('EIO');
+      },
+      take: async () => undefined,
+      set: async () => undefined,
+      delete: async () => undefined,
+    };
+    const failure = new Response('blocked', { status: 403 });
+    const { cimd, events } = setUp(async () => failure, lastGood);
+    expect(await cimd.fetch(URL_, {})).toBe(failure);
+    expect(events).toEqual([
+      ['warn', 'oauth_cimd_last_good_read_failed', { url: URL_, error: 'EIO' }],
+      failed({ status: 403, fallback: 'none' }),
+    ]);
+  });
+
+  it('forgets the copy seven days after it was kept', async () => {
+    const lastGood = createSealedCollection<CimdLastGood>(
+      createRedisStore(createFakeRedis().redis, 'test'),
+      'CimdDocument',
+      deriveKeyRing(Buffer.alloc(32, 3).toString('base64')),
+    );
+    const { cimd } = setUp(sequence(ok, status(403)), lastGood);
+    await signIn(cimd);
+    vi.advanceTimersByTime(LAST_GOOD_TTL_S * 1000 - 1);
+    expect((await cimd.fetch(URL_, {})).status).toBe(200);
+    vi.advanceTimersByTime(1);
+    expect((await cimd.fetch(URL_, {})).status).toBe(403);
+  });
+});
+
+describe('CIMD_FETCH_HINT', () => {
+  it('says what failed and why it matters, in ASCII', () => {
+    expect(CIMD_FETCH_HINT).toBe(
+      'A client document, or a URL it names, could not be fetched: the client cannot sign in or refresh unless a last good copy is served.',
+    );
+  });
+});

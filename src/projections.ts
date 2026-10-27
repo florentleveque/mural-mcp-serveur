@@ -143,7 +143,12 @@ export function toCompactWidget(raw: any): CompactWidget {
     case 'file':
       return { ...base, ...opt('url', raw.url), ...opt('filename', raw.filename) };
     case 'table':
-      return { ...base, ...opt('rows', raw.rows), ...opt('columns', raw.columns), ...opt('data', raw.data) };
+      return {
+        ...base,
+        ...opt('rows', raw.rows),
+        ...opt('columns', raw.columns),
+        ...opt('data', raw.data),
+      };
     case 'arrow':
       return {
         ...base,
