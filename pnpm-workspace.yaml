@@ -21,3 +21,6 @@ minimumReleaseAge: 7200
 # the fix. Background: docs/decisions/mutation-testing.md.
 patchedDependencies:
   '@stryker-mutator/vitest-runner@10.0.0': patches/@stryker-mutator__vitest-runner@10.0.0.patch
+minimumReleaseAgeExclude:
+  # Renovate security update: zod@4.6.6
+  - zod@4.6.6
