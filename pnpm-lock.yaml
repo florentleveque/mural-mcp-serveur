@@ -185,8 +185,8 @@ importers:
         specifier: ^6.2.12
         version: 6.2.12
       oidc-provider:
-        specifier: ~9.12.2
-        version: 9.12.2(supports-color@7.2.0)
+        specifier: ~9.15.0
+        version: 9.15.0(supports-color@7.2.0)
       zod:
         specifier: ^4.0.14
         version: 4.4.3
@@ -1846,6 +1846,9 @@ packages:
   jose@6.2.12:
     resolution: {integrity: sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==}
 
+  jose@6.2.17:
+    resolution: {integrity: sha512-wOuK9V1yujQFH5S0ZWmLcDZN7+IKh9bUCC2ZPCf2HDlol3WWHy+PPyNjEI75FXRLMp3vDKQcupP59xhVU95hcg==}
+
   js-md4@0.3.2:
     resolution: {integrity: sha512-/GDnfQYsltsjRswQhN9fhv3EMw2sCpUdrdxyWDOUK7eyD++r3gRhzgiQgc/x4MAv2i1iuQ4lxO5mvqM3vj4bwA==}
 
@@ -1894,8 +1897,8 @@ packages:
   koa-compose@4.1.0:
     resolution: {integrity: sha512-8ODW8TrDuMYvXRwra/Kh7/rJo9BtOfPc6qO8eAfC80CnCvSjSl0bkRM24X6/XBBEyj0v1nRUQ1LyOy3dbqOWXw==}
 
-  koa@3.2.1:
-    resolution: {integrity: sha512-e7IpWJrnanNUroVK2taAgMxoEZvHLXdQiNjeExSu/DEIWm83jaKGBgb7tLmu2rMYpA027qFB3iLR/k3AVpFRnA==}
+  koa@3.3.0:
+    resolution: {integrity: sha512-NdsWJYxVzUuYt718DtEQRhUXqqsAPA4VlaUGrlidjh/T2TP/4OQXqQg4ouUHfHD9f+tgmwLZWPm+JQLgqM9YbA==}
     engines: {node: '>= 18'}
 
   lefthook-darwin-arm64@2.1.15:
@@ -2318,8 +2321,8 @@ packages:
     resolution: {integrity: sha512-XrsrhT5sybtKI6wakr2SPOlGZWWYbUXZ7a0jT8/QOeAPau+1X/bSegNe5YR75oJmEZQbKningirmGOEJCIk61Q==}
     engines: {node: '>=12.20.0'}
 
-  oidc-provider@9.12.2:
-    resolution: {integrity: sha512-UaqeVpeijTocxVbDowPqPKloGjb49bxRSzHfChyI86teR+6xxoiI1V5jv8CHL2AIUmA2rg0xTZcYaC9GguympA==}
+  oidc-provider@9.15.0:
+    resolution: {integrity: sha512-iK12JdGBWRNMz8pAG6r3p//bvKOEmb4OBOApSQSflfoex9ar5xjeaYn9XrJHf6EFj/+Q/O478wM6BLGd9lVu+Q==}
 
   on-finished@2.4.1:
     resolution: {integrity: sha512-oVlzkg3ENAhCk2zdv7IJwd/QUD4z2RxRwpkcGY8psCVcCYZNq4wYnVWALHM+brtuJjePWiYF/ClmuDr8Ch5+kg==}
@@ -4762,6 +4765,8 @@ snapshots:
 
   jose@6.2.12: {}
 
+  jose@6.2.17: {}
+
   js-md4@0.3.2: {}
 
   js-tokens@10.0.0: {}
@@ -4798,7 +4803,7 @@ snapshots:
 
   koa-compose@4.1.0: {}
 
-  koa@3.2.1:
+  koa@3.3.0:
     dependencies:
       accepts: 1.3.8
       content-disposition: 1.0.1
@@ -5118,11 +5123,11 @@ snapshots:
 
   obug@2.2.1: {}
 
-  oidc-provider@9.12.2(supports-color@7.2.0):
+  oidc-provider@9.15.0(supports-color@7.2.0):
     dependencies:
       debug: 4.4.3(supports-color@7.2.0)
-      jose: 6.2.12
-      koa: 3.2.1
+      jose: 6.2.17
+      koa: 3.3.0
     transitivePeerDependencies:
       - supports-color
 
